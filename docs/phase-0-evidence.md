@@ -14,7 +14,7 @@ claim runtime enforcement; implementation conformance belongs to later phases.
 | GOV-002–005 | `e7f2b2b`, `b5fad60`, `7d6e8af`, `e964f2a` | context/trust boundaries, threat model, data classification, glossary/ownership |
 | GOV-006–009 | `36749c4`, `31a4b77`, `6afffea`, `da1d7ec` | catalog, state machine, canonical JSON vectors, retry/idempotency |
 | GOV-010–014 | `ebdba97`, `8795808`, `ab989d6`, `eef547c`, `401b983` | AG authorization/approval, GR, credential, and connector contracts |
-| GOV-015–020 | `f0a34db`, `e842e69`, `994207d`, `a01c3d6`, `2747e37`, `287f8ed` | OpenAPI, MCP, PostgreSQL, evidence, versions, SLO/capacity |
+| GOV-015–020 | `f0a34db`, `e842e69` (MCP baseline updated by `58a5978`), `994207d`, `a01c3d6`, `2747e37`, `287f8ed` | OpenAPI, MCP 2026-07-28, PostgreSQL, evidence, versions, SLO/capacity |
 | GOV-021 | `99a0576` | authority closure review and disposition |
 
 The corresponding checklist ledger commits record the completion date, artifact,
