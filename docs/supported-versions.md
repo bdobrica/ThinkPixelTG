@@ -9,7 +9,7 @@ Status: Phase 0 baseline, verified 2026-08-22
 | Valkey (optional) | 9.1.1 | pin digest; acceleration only and never authoritative; service remains correct when absent |
 | Kubernetes | 1.35-1.36 API baseline; conformance target 1.36.2 | support currently maintained minors after conformance; avoid alpha APIs |
 | OpenAPI | 3.1.2 with JSON Schema 2020-12 | API document remains 3.1 until explicit compatibility review; lint against current 3.1 schema |
-| MCP | revision 2025-11-25, Streamable HTTP | exact protocol revision negotiation; upgrades require contract/conformance change |
+| MCP | revision 2026-07-28, stateless Streamable HTTP | exact per-request protocol revision; upgrades require contract/conformance change |
 | OIDC/JWT | OpenID Connect Core 1.0 (errata 2); RFC 7519/8725/9068 | explicit issuer/audience/resource/algorithm profiles; track security BCP updates |
 | OAuth/token exchange | OAuth 2.0 RFC 6749 + Security BCP RFC 9700; RFC 8693; protected-resource metadata RFC 9728 | no inbound token passthrough; sender/audience-bound profiles selected per integration |
 | SPIFFE | specification 1.15.2; X.509-SVID/Workload API profile | upgrade only after identity interoperability and trust-bundle rotation tests |
@@ -41,6 +41,6 @@ Official baselines: [Go releases](https://go.dev/doc/devel/release),
 [Valkey downloads](https://valkey.io/download/),
 [Kubernetes releases](https://kubernetes.io/releases/),
 [OpenAPI specifications](https://spec.openapis.org/oas/),
-[MCP transport revision](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports),
+[MCP specification](https://modelcontextprotocol.io/specification/2026-07-28),
 [SPIFFE specifications](https://spiffe.io/docs/latest/spiffe-specs/), and
 [OpenTelemetry releases](https://github.com/open-telemetry/opentelemetry-specification/releases).

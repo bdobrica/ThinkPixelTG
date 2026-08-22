@@ -205,11 +205,11 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [ ] MCP-004 Derive MCP annotations from TG trusted risk/side-effect metadata; never consume caller/server-supplied annotations as authorization, approval, idempotency, or credential-selection facts.
 - [ ] MCP-005 Implement `tools/call` by translating into the canonical invocation application service; there must be no alternate MCP-only execution path.
 - [ ] MCP-006 Define how a target harness supplies or derives a stable logical `tool_call_id` across retries; explicitly reject the assumption that a transient JSON-RPC request ID alone provides platform idempotency.
-- [ ] MCP-007 Implement Streamable HTTP transport with strict authentication, configured Origin validation, session limits, request/body/time bounds, cancellation, and safe error mapping.
+- [ ] MCP-007 Implement revision `2026-07-28` stateless Streamable HTTP with strict authentication, configured Origin/Host validation, required routing-header/body agreement, per-request identity/capability metadata, request/body/time/concurrency bounds, cancellation, and safe error mapping.
 - [ ] MCP-008 Implement any required MCP authorization/protected-resource metadata behavior without OAuth token passthrough to downstream connectors.
 - [ ] MCP-009 Implement deterministic mapping of TG typed errors/states—including approval-required and ambiguous outcomes—into MCP-compatible results/errors without leaking internal credentials/providers.
 - [ ] MCP-010 Implement an optional stdio adapter only if required by the target harness; authenticate it through trusted local/workload/run context rather than trusting arbitrary environment/body IDs.
-- [ ] MCP-011 Add MCP conformance/compatibility tests for discovery, schema fidelity, tool calls, errors, sessions, cancellation, auth/origin behavior, and protocol-version negotiation.
+- [ ] MCP-011 Add MCP conformance/compatibility tests for optional discovery, schema fidelity/cache hints, tool calls, errors, per-request version/client/capability metadata, routing-header mismatch, continuation replay, cancellation, and auth/origin behavior.
 - [ ] MCP-012 Run a Codex App Server or selected harness smoke test proving it can discover/call TG tools, receive approval/result states, and never receives a downstream credential; record `docs/phase-9-evidence.md`.
 
 ---

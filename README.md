@@ -661,7 +661,7 @@ Runtime configuration is intended to be explicit, typed, and validated before st
 Configuration groups include:
 
 - HTTP listeners, deadlines, and limits;
-- MCP revisions, transports, and session limits;
+- MCP revisions, transports, per-request metadata, and concurrency limits;
 - PostgreSQL and optional Valkey;
 - authentication issuers, audiences, and JWKS;
 - ThinkPixelAG endpoint and authorization freshness;

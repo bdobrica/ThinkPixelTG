@@ -18,7 +18,7 @@ checked for a tenant-scoped record and atomic evidence boundary.
 
 | Concern | Decision source | TG enforcement/evidence | Explicitly non-authoritative | Failure posture |
 |---|---|---|---|---|
-| Tenant, subject, agent/version, run | verified IdP context plus AG governed context | ingress/context resolver; context and auth events | ordinary headers/body, tool args, MCP session | reject/fail closed |
+| Tenant, subject, agent/version, run | verified IdP context plus AG governed context | ingress/context resolver; context and auth events | ordinary headers/body, tool args, MCP request metadata/continuation | reject/fail closed |
 | Workload identity | configured workload identity verifier | authenticated request context/evidence | end-user identity, forwarded header, body | reject/fail closed |
 | Tool semantics/version | immutable published TG version | catalog resolution and persisted exact version | descriptions, MCP annotations, connector guesses, caller version defaults | unknown/unexposed/disabled rejects |
 | Authorization | authenticated current AG decision | strict adapter, narrowing intersection, persisted decision | GR, caller, connector/provider, local broadening | deny/fail closed |

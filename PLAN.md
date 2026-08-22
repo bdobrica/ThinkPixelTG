@@ -198,7 +198,7 @@ The initial design must explicitly mitigate:
 - resource exhaustion through large payloads or high concurrency;
 - unbounded downstream latency;
 - retry storms;
-- replay of stale MCP sessions;
+- MCP routing-header/body confusion and cross-context continuation replay;
 - downstream result injection returned to the model.
 
 ### 4.3 No OAuth token passthrough
@@ -791,7 +791,9 @@ Requirements include:
 - never forward the incoming MCP token to downstream APIs;
 - validate `Origin` on Streamable HTTP requests;
 - use HTTPS outside trusted local development;
-- secure MCP session identifiers against fixation/hijacking.
+- validate the pinned revision, client identity/capabilities, and required routing
+  headers on every stateless request;
+- reject header/body disagreement and treat continuation state as non-authoritative.
 
 ### 10.5 stdio adapter authentication
 
@@ -1320,12 +1322,13 @@ If a tool legitimately transports secret data, its policy must define the minimu
 
 The first MCP implementation supports the minimum server features necessary for enterprise tool use:
 
-- initialization/lifecycle;
+- stateless per-request protocol/client/capability metadata;
+- optional `server/discover` when required by target clients;
 - ping as required by SDK/conformance needs;
 - `tools/list`;
 - `tools/call`;
 - pagination;
-- `notifications/tools/list_changed` when applicable;
+- revision-defined deterministic list ordering and cache hints;
 - Streamable HTTP transport;
 - stdio adapter as a separate binary if needed for harness compatibility.
 
@@ -1345,7 +1348,11 @@ Pin one current stable MCP protocol revision in tests and document supported com
 
 Do not silently track an unversioned “latest” schema in production builds.
 
-At initial planning time, `2025-11-25` is the stable baseline to evaluate for RC compatibility, with explicit conformance tests for the clients targeted by the project.
+The selected baseline is `2026-07-28`, with explicit conformance tests for the
+clients targeted by the project. Its core is stateless: it removes the
+`initialize`/`initialized` handshake and protocol session identifier, carries
+version/client/capability metadata per request, and optionally exposes
+`server/discover`.
 
 ### 17.3 Tool discovery
 
@@ -1356,7 +1363,9 @@ At initial planning time, `2025-11-25` is the stable baseline to evaluate for RC
 
 Discovery filtering is not a substitute for call-time authorization. Every `tools/call` is authorized again against current state.
 
-Ordering must be deterministic for a stable underlying tool set to improve client/model prompt caching.
+Ordering must be deterministic for a stable underlying tool set to improve
+client/model prompt caching. Revision-defined `ttlMs` and `cacheScope` must reflect
+the authenticated catalog visibility; cache metadata cannot broaden discovery.
 
 ### 17.4 MCP tool mapping
 
@@ -1385,7 +1394,11 @@ The MCP adapter translates a call into the canonical invocation application serv
 
 MCP JSON-RPC request IDs are **not** the logical `tool_call_id` unless a documented mapping guarantees stability across harness retries.
 
-The adapter should accept/extract a stable logical call ID through trusted `_meta`/runtime integration where interoperable, or generate and return one while maintaining session mapping. For Codex integration, define and test the exact logical-ID propagation mechanism rather than assuming the JSON-RPC ID is sufficient.
+The adapter should accept/extract a stable logical call ID through the documented
+TG `_meta`/runtime integration where interoperable, or generate and return one as
+explicit continuation data. It must not rely on hidden protocol session mapping.
+For Codex integration, define and test the exact logical-ID propagation mechanism
+rather than assuming the JSON-RPC ID or MRTR `requestState` is sufficient.
 
 ### 17.6 Error mapping
 
@@ -1404,15 +1417,18 @@ Authorization denials and approval requirements must be represented consistently
 
 Implement:
 
-- POST/GET semantics required by the selected MCP revision;
+- stateless request/response semantics required by revision `2026-07-28`;
+- required `MCP-Protocol-Version`, `Mcp-Method`, and applicable `Mcp-Name` headers,
+  with rejection when routing headers and JSON-RPC body disagree;
+- per-request client identity and capabilities in the revision-defined `_meta`;
 - content-type/Accept validation;
 - origin validation;
 - authentication on every request;
-- secure random session IDs when sessions are used;
-- session expiry and bounded state;
 - request/body limits;
-- SSE connection limits/timeouts when streaming is used;
-- resumability only when implemented correctly;
+- per-principal/global concurrency limits;
+- optional subscription-stream limits/timeouts when implemented;
+- bounded, integrity-protected MRTR continuation state when implemented, never
+  treated as authentication, authorization, approval, or logical-call identity;
 - graceful disconnect handling.
 
 Bind local development endpoints to loopback by default.
@@ -1788,7 +1804,7 @@ Required metrics include:
 - database pool saturation;
 - outbox lag;
 - usage publication lag;
-- MCP active sessions/connections;
+- MCP active requests/subscription connections;
 - response-size limit hits;
 - rate-limit/concurrency-limit denials;
 - readiness degradation reasons.
@@ -1829,7 +1845,7 @@ Global and per-tool bounds include:
 - maximum JSON nesting depth;
 - maximum argument properties/array entries;
 - maximum string length;
-- maximum MCP batch/session behavior according to selected revision;
+- maximum MCP request, continuation, and batch behavior according to the selected revision;
 - maximum result bytes;
 - maximum decompressed response bytes;
 - maximum connector duration.
@@ -2102,7 +2118,7 @@ Use explicit typed configuration with startup validation.
 Configuration categories:
 
 - HTTP listener/timeouts/limits;
-- MCP protocol revisions/transports/session limits;
+- MCP protocol revisions/transports/per-request metadata and concurrency limits;
 - database;
 - optional Valkey;
 - authentication issuers/audiences/JWKS;
@@ -2318,16 +2334,16 @@ Test against the pinned MCP revision and representative clients.
 
 Cover:
 
-- initialize;
-- version negotiation;
+- stateless per-request protocol version, client identity, and capability metadata;
+- optional `server/discover`;
+- required routing headers and header/body mismatch rejection;
 - authentication;
 - origin validation;
-- `tools/list` pagination/determinism;
-- list-changed notification;
+- `tools/list` pagination/determinism/cache hints;
 - `tools/call` success/tool error;
 - approval-required mapping;
 - protocol errors;
-- session expiry;
+- cross-context MRTR continuation replay rejection when MRTR is supported;
 - Streamable HTTP disconnect behavior;
 - stdio framing if adapter is shipped.
 
@@ -2425,7 +2441,7 @@ Before RC, qualify:
 - mixed read/write invocation QPS;
 - high-cardinality tenant/run traffic without metric explosion;
 - database connection pool sizing;
-- MCP session count;
+- MCP active request/subscription count;
 - connector concurrency limits;
 - large-but-valid result handling;
 - outbox/evidence backpressure.
@@ -2588,7 +2604,7 @@ Implement:
 
 - pinned MCP protocol types/conformance;
 - Streamable HTTP;
-- auth/origin/session controls;
+- auth/origin/per-request routing and continuation controls;
 - `tools/list`;
 - `tools/call`;
 - deterministic discovery;
@@ -2840,7 +2856,7 @@ The implementation should track standards deliberately rather than by accidental
 
 Initial references to record in `docs/supported-versions.md` include:
 
-- MCP specification, stable revision selected for implementation and conformance; at planning time evaluate `2025-11-25` as the baseline;
+- MCP specification revision `2026-07-28`, selected for implementation and conformance;
 - MCP Streamable HTTP transport and authorization requirements;
 - MCP tool schema/annotations, treating annotations as hints only;
 - OAuth 2.0 / OAuth 2.1 security best practices as applicable;
