@@ -1,0 +1,17 @@
+{
+  "profile": "tg-cjson-v1",
+  "hash": "sha-256",
+  "domain": "ThinkPixelTG:arguments:tg-cjson-v1\u0000",
+  "vectors": [
+    {"name":"object-order","input":"{\"z\":0,\"a\":1}","canonical":"{\"a\":1,\"z\":0}","canonical_hex":"7b2261223a312c227a223a307d","digest_hex":"65cf7e3b4eaba11adaab0cb2e388874ab9063ce12f66e439463e4dee41c2eec7"},
+    {"name":"unicode-literal","input":"{\"s\":\"€\"}","canonical":"{\"s\":\"€\"}","canonical_hex":"7b2273223a22e282ac227d","digest_hex":"2a149c61484ffcbee431ef9bbc54e3b31b4904c27262f68f7141f947460895cc"},
+    {"name":"number-normalization","input":"[1.0,1e+0,0.000001]","canonical":"[1,1,0.000001]","canonical_hex":"5b312c312c302e3030303030315d","digest_hex":"a7cf95ed6e26bbcd52868e81d300790363b069376f0222200a141b5d0dcd94de"}
+  ],
+  "reject": [
+    {"name":"duplicate-key","input":"{\"a\":1,\"a\":2}"},
+    {"name":"leading-zero","input":"01"},
+    {"name":"non-finite","input":"NaN"},
+    {"name":"unsafe-integer","input":"9007199254740993"},
+    {"name":"invalid-surrogate","input":"\"\\uD800\""}
+  ]
+}
