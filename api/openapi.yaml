@@ -1,0 +1,267 @@
+openapi: 3.1.2
+info:
+  title: ThinkPixelTG API
+  version: 0.1.0-alpha.1
+  summary: Canonical governed tool discovery, invocation, and administration API.
+  description: >-
+    Phase 0 draft. Identity and governance context are derived from authenticated
+    material; body and path identifiers never establish authority.
+servers:
+  - url: https://thinkpixeltg.example.invalid
+security:
+  - bearerAuth: []
+tags:
+  - name: Tools
+  - name: Invocations
+  - name: Administration
+  - name: Operations
+paths:
+  /v1/tools:
+    get:
+      operationId: listTools
+      tags: [Tools]
+      summary: List exposed and authorized tool versions.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Deterministically ordered page.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ToolPage'}
+        default: {$ref: '#/components/responses/Problem'}
+  /v1/tools/{tool_id}:
+    get:
+      operationId: getTool
+      tags: [Tools]
+      summary: Describe an exposed tool version.
+      parameters:
+        - $ref: '#/components/parameters/ToolId'
+        - name: version
+          in: query
+          schema: {type: string, maxLength: 64}
+      responses:
+        '200':
+          description: Tool description.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Tool'}
+        default: {$ref: '#/components/responses/Problem'}
+  /v1/tool-calls:
+    post:
+      operationId: createToolCall
+      tags: [Invocations]
+      summary: Acquire and process one governed logical tool call.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateToolCall'}
+      responses:
+        '200':
+          description: Existing matching logical invocation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ToolCall'}
+        '202':
+          description: Accepted, running, waiting, or ambiguous invocation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ToolCall'}
+        default: {$ref: '#/components/responses/Problem'}
+  /v1/tool-calls/{tool_call_id}:
+    get:
+      operationId: getToolCall
+      tags: [Invocations]
+      summary: Read a tool call scoped to authenticated tenant and run.
+      parameters:
+        - $ref: '#/components/parameters/ToolCallId'
+      responses:
+        '200':
+          description: Safe invocation projection.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ToolCall'}
+        default: {$ref: '#/components/responses/Problem'}
+  /v1/admin/tool-versions:
+    post:
+      operationId: publishToolVersion
+      tags: [Administration]
+      summary: Publish an immutable tool version through separate admin authority.
+      security: [{adminBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PublishToolVersion'}
+      responses:
+        '201':
+          description: Published immutable version.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Tool'}
+        default: {$ref: '#/components/responses/Problem'}
+  /v1/admin/tenant-tool-exposures:
+    put:
+      operationId: setTenantToolExposure
+      tags: [Administration]
+      summary: Set tenant exposure through separate admin authority.
+      security: [{adminBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TenantToolExposure'}
+      responses:
+        '200': {description: Exposure updated}
+        default: {$ref: '#/components/responses/Problem'}
+  /livez:
+    get:
+      operationId: live
+      tags: [Operations]
+      security: []
+      responses:
+        '200': {description: Process is live}
+  /readyz:
+    get:
+      operationId: ready
+      tags: [Operations]
+      security: []
+      responses:
+        '200': {description: Declared dependency posture is ready}
+        '503': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: oauth2
+      description: Audience-bound caller token for TG; never forwarded downstream.
+      flows:
+        clientCredentials:
+          tokenUrl: https://identity.example.invalid/oauth2/token
+          scopes: {thinkpixeltg.invoke: Invoke governed tools}
+    adminBearerAuth:
+      type: oauth2
+      description: Separate privileged administration audience and policy.
+      flows:
+        clientCredentials:
+          tokenUrl: https://identity.example.invalid/oauth2/token
+          scopes: {thinkpixeltg.admin: Administer catalog and exposure}
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string, maxLength: 2048}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    ToolId:
+      name: tool_id
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$', maxLength: 128}
+    ToolCallId:
+      name: tool_call_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ToolCallId'}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Stable logical tool_call_id; a transport request ID is insufficient.
+      schema: {$ref: '#/components/schemas/ToolCallId'}
+  responses:
+    Problem:
+      description: RFC 9457 problem details; never contains credentials/provider bodies.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    ToolCallId:
+      type: string
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$'
+    Digest:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+    Tool:
+      type: object
+      additionalProperties: false
+      required: [tool_id, version, description, input_schema, output_schema, risk, side_effect, retry_class]
+      properties:
+        tool_id: {type: string}
+        version: {type: string}
+        description: {type: string, maxLength: 4096}
+        input_schema: {type: object}
+        output_schema: {type: object}
+        risk: {enum: [read, bounded_write, consequential_write, privileged]}
+        side_effect: {type: boolean}
+        retry_class: {enum: [safe, downstream_idempotency, gateway_deduplicated, reconcile_before_retry, at_least_once_accepted, non_retryable]}
+        approval: {enum: [never, policy, always]}
+        open_world_result: {type: boolean}
+    ToolPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Tool'}}
+        next_cursor: {type: [string, 'null'], maxLength: 2048}
+    CreateToolCall:
+      type: object
+      additionalProperties: false
+      required: [tool_id, arguments]
+      properties:
+        tool_id: {type: string}
+        version: {type: string}
+        arguments: {}
+      description: Governance identity, destination, credential, and retry overrides are prohibited.
+    ToolCall:
+      type: object
+      additionalProperties: false
+      required: [tool_call_id, tool_id, version, state, created_at, updated_at]
+      properties:
+        tool_call_id: {$ref: '#/components/schemas/ToolCallId'}
+        tool_id: {type: string}
+        version: {type: string}
+        state: {enum: [received, validated, authorized, pre_tool_passed, waiting_for_approval, ready, executing, retry_wait, reconciling, ambiguous, manual_review, post_tool, succeeded, failed, denied, blocked, cancelled]}
+        approval_reference: {type: [string, 'null']}
+        result: {}
+        error_code: {type: [string, 'null']}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    PublishToolVersion:
+      allOf:
+        - {$ref: '#/components/schemas/Tool'}
+        - type: object
+          required: [connector_operation, credential_binding_selector, resource_projection, limits, metering]
+          properties:
+            connector_operation: {type: string}
+            credential_binding_selector: {type: object}
+            resource_projection: {type: object}
+            limits: {type: object}
+            metering: {type: object}
+    TenantToolExposure:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, tool_id, version, enabled]
+      properties:
+        tenant_id: {type: string}
+        tool_id: {type: string}
+        version: {type: string}
+        enabled: {type: boolean}
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [type, title, status, code, correlation_id]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string, maxLength: 1024}
+        instance: {type: string, format: uri-reference}
+        code:
+          enum: [unauthenticated, invalid_context, tool_not_found, invalid_arguments, replay_conflict, authorization_denied, approval_required, approval_invalid, guardrail_blocked, credential_unavailable, downstream_rejected, ambiguous_outcome, result_blocked, rate_limited, budget_exhausted, internal]
+        correlation_id: {type: string}
