@@ -63,7 +63,7 @@ for (const file of markdownFiles) {
 }
 
 const todo = readFileSync(join(root, 'TODO.md'), 'utf8');
-for (let item = 1; item <= 21; item++) {
+for (let item = 1; item <= 22; item++) {
   const id = `GOV-${String(item).padStart(3, '0')}`;
   if (!todo.includes(`- [x] ${id}`)) errors.push(`${id} is not complete in TODO.md`);
 }

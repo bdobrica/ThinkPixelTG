@@ -34,7 +34,7 @@ The Phase 0 gate pins Redocly CLI `2.46.2` and performs:
 - `git diff HEAD --check` for whitespace errors;
 - required-artifact checks;
 - local Markdown-link validation;
-- GOV-001 through GOV-021 checklist-state validation;
+- GOV-001 through GOV-022 checklist-state validation;
 - required security-invariant coverage checks;
 - canonical JSON fixture encoding and domain-separated SHA-256 verification;
 - OpenAPI required-surface structural checks.
