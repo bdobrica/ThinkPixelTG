@@ -878,4 +878,5 @@ If those statements remain true when the harness, model, connector set, and MCP 
 
 ## License
 
-Licensed under the terms in [LICENSE](LICENSE).
+A project license has not yet been selected. Do not assume permission beyond the
+rights granted by the copyright holder until a license is added.

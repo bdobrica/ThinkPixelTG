@@ -2,6 +2,9 @@ openapi: 3.1.2
 info:
   title: ThinkPixelTG API
   version: 0.1.0-alpha.1
+  license:
+    name: License pending selection
+    identifier: LicenseRef-Pending
   summary: Canonical governed tool discovery, invocation, and administration API.
   description: >-
     Phase 0 draft. Identity and governance context are derived from authenticated
@@ -12,9 +15,13 @@ security:
   - bearerAuth: []
 tags:
   - name: Tools
+    description: Tenant-scoped, authorization-filtered tool discovery.
   - name: Invocations
+    description: Governed logical tool calls and their safe status projections.
   - name: Administration
+    description: Separately authorized catalog and exposure administration.
   - name: Operations
+    description: Process liveness and declared dependency readiness.
 paths:
   /v1/tools:
     get:
@@ -30,6 +37,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolPage'}
+        '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/tools/{tool_id}:
     get:
@@ -47,6 +55,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Tool'}
+        '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/tool-calls:
     post:
@@ -71,6 +80,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolCall'}
+        '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/tool-calls/{tool_call_id}:
     get:
@@ -85,6 +95,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolCall'}
+        '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/admin/tool-versions:
     post:
@@ -103,6 +114,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Tool'}
+        '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/admin/tenant-tool-exposures:
     put:
@@ -117,21 +129,26 @@ paths:
             schema: {$ref: '#/components/schemas/TenantToolExposure'}
       responses:
         '200': {description: Exposure updated}
+        '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /livez:
     get:
       operationId: live
       tags: [Operations]
+      summary: Report process liveness without checking dependencies.
       security: []
       responses:
         '200': {description: Process is live}
+        '400': {$ref: '#/components/responses/Problem'}
   /readyz:
     get:
       operationId: ready
       tags: [Operations]
+      summary: Report readiness for the declared dependency posture.
       security: []
       responses:
         '200': {description: Declared dependency posture is ready}
+        '400': {$ref: '#/components/responses/Problem'}
         '503': {$ref: '#/components/responses/Problem'}
 components:
   securitySchemes:
@@ -184,9 +201,6 @@ components:
     ToolCallId:
       type: string
       pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$'
-    Digest:
-      type: string
-      pattern: '^[a-f0-9]{64}$'
     Tool:
       type: object
       additionalProperties: false
