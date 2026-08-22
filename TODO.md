@@ -23,7 +23,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 
 ## Phase 0 — Decisions, threat model, and contracts
 
-- [ ] GOV-001 Create `docs/`, `docs/adr/`, `docs/contracts/`, `docs/security/`, `docs/operations/`, and `docs/architecture/`; add an ADR template covering status, context, decision, alternatives, consequences, security, operations, compatibility, and references.
+- [x] GOV-001 Create `docs/`, `docs/adr/`, `docs/contracts/`, `docs/security/`, `docs/operations/`, and `docs/architecture/`; add an ADR template covering status, context, decision, alternatives, consequences, security, operations, compatibility, and references. — completed 2026-08-22, commit 21eba26, evidence: `git diff --check`; `docs/adr/0000-template.md`; documentation directory indexes
 - [ ] GOV-002 Write the system-context and trust-boundary document showing harnesses, ThinkPixelTG, ThinkPixelAG, ThinkPixelGR, ThinkPixelLLMGW, PostgreSQL, optional Valkey, credential providers, evidence sinks, connector destinations, operators, and downstream enterprise systems.
 - [ ] GOV-003 Produce the initial threat model covering identity spoofing, tenant/run confusion, confused deputy behavior, credential exfiltration, token passthrough, approval TOCTOU, replay, duplicate side effects, SSRF, stale authorization/revocation, MCP-origin/session attacks, result prompt injection, evidence leakage/tampering, and privileged-admin compromise.
 - [ ] GOV-004 Define data-classification and redaction rules for inbound arguments, downstream credentials, provider responses, tool results, GR inputs/outputs, authorization decisions, approvals, evidence, logs, traces, metrics, database rows, and dead-letter/outbox payloads.
