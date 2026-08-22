@@ -12,17 +12,19 @@ It implements the tool-enforcement boundary described in [A Minimum Viable Platf
 
 ## Status
 
-**Planning / initial implementation.**
+**Phase 0 complete; Phase 1 engineering foundation is next.**
 
 [PLAN.md](PLAN.md) is the implementation contract for the first release candidate. It defines the security model, domain model, APIs, connector framework, MCP compatibility layer, delivery phases, test strategy, and release gates.
 
-As implementation progresses:
+The project documentation is now organized as follows:
 
-- `PLAN.md` defines the target architecture and invariants;
-- `TODO.md` acts as the ordered implementation ledger;
-- durable decisions move into `docs/adr/`;
-- public REST contracts are described by OpenAPI;
-- supported MCP and security protocol versions are pinned explicitly.
+- [PLAN.md](PLAN.md) defines the target architecture and invariants;
+- [TODO.md](TODO.md) is the ordered implementation ledger;
+- [Phase 0 evidence](docs/phase-0-evidence.md) records completed governance gates;
+- [architecture documentation](docs/architecture/README.md), [security documentation](docs/security/README.md), and [contracts](docs/contracts/README.md) define the current normative baseline;
+- [architecture decision records](docs/adr/README.md) capture consequential decisions;
+- [OpenAPI](api/openapi.yaml) describes the canonical REST contract;
+- [supported versions](docs/supported-versions.md) pins MCP and security protocol baselines.
 
 Interfaces described below are target contracts until their implementation and tests land in the repository.
 
@@ -65,25 +67,20 @@ A harness may be compromised, manipulated by prompt injection, misled by retriev
 
 ThinkPixelTG moves that authority out of the harness:
 
-```text
-Agent harness
-    |
-    | governed tool request
-    v
-ThinkPixelTG
-    |
-    +--> authenticate governed context
-    +--> authorize with ThinkPixelAG
-    +--> evaluate ThinkPixelGR pre_tool
-    +--> enforce action approval when required
-    +--> resolve downstream credential
-    +--> execute through a trusted connector
-    +--> evaluate ThinkPixelGR post_tool
-    +--> meter trusted usage
-    +--> persist evidence
-    |
-    v
-Enterprise system
+```mermaid
+flowchart TB
+    H[Agent harness] -->|Governed tool request| AUTH[Authenticate governed context]
+    subgraph TG[ThinkPixelTG]
+        AUTH --> AG[Authorize with ThinkPixelAG]
+        AG --> PRE[Evaluate ThinkPixelGR pre_tool]
+        PRE --> APP[Enforce action approval when required]
+        APP --> CRED[Resolve downstream credential]
+        CRED --> CONN[Execute through a trusted connector]
+        POST --> USAGE[Meter trusted usage]
+        USAGE --> EVID[Persist evidence]
+    end
+    CONN -->|Governed request| ENT[Enterprise system]
+    ENT -->|Downstream result| POST
 ```
 
 The harness never needs the downstream credential.
@@ -135,16 +132,12 @@ ThinkPixelTG is a **Policy Enforcement Point (PEP)**. ThinkPixelAG is expected t
 
 The boundary is deliberate:
 
-```text
-ThinkPixelAG:
-    "May this governed run perform this operation?"
-
-ThinkPixelGR:
-    "Does this proposed operation or result violate configured
-     safety/data policy?"
-
-ThinkPixelTG:
-    "Enforce those decisions at the downstream execution boundary."
+```mermaid
+flowchart LR
+    AG["ThinkPixelAG<br/>May this governed run perform this operation?"]
+    GR["ThinkPixelGR<br/>Does this operation or result violate safety/data policy?"]
+    AG --> TG["ThinkPixelTG<br/>Enforce decisions at the downstream execution boundary"]
+    GR --> TG
 ```
 
 A GR `allow` never overrides an authorization denial.
@@ -153,33 +146,24 @@ A GR `allow` never overrides an authorization denial.
 
 The intended complete path is:
 
-```text
-Client / IDE
-    |
-    v
-ThinkPixelAG
-    | creates governed run + resource envelope
-    v
-Runtime worker / Codex harness
-    |
-    | model calls
-    +---------------------> ThinkPixelLLMGW
-    |                           |
-    |                           +--> ThinkPixelGR pre/post model
-    |
-    | tool calls
-    v
-ThinkPixelTG
-    |
-    +--> derive run/user/agent/workload identity
-    +--> ThinkPixelAG authorize tool action
-    +--> ThinkPixelGR pre_tool
-    +--> ThinkPixelAG action approval when required
-    +--> credential broker
-    +--> downstream connector
-    +--> ThinkPixelGR post_tool
-    +--> trusted usage -> ThinkPixelAG
-    +--> evidence/outbox
+```mermaid
+flowchart TB
+    CLIENT[Client / IDE] --> AG[ThinkPixelAG]
+    AG -->|Governed run and resource envelope| H[Runtime worker / Codex harness]
+    H -->|Model calls| GW[ThinkPixelLLMGW]
+    GW -->|Pre/post model evaluation| GR[ThinkPixelGR]
+    H -->|Tool calls| TG[ThinkPixelTG]
+    TG --> ID[Derive run, user, agent, and workload identity]
+    ID --> AUTH[ThinkPixelAG tool authorization]
+    AUTH --> PRE[ThinkPixelGR pre_tool]
+    PRE --> APP[ThinkPixelAG action approval when required]
+    APP --> CRED[Credential broker]
+    CRED --> CONN[Downstream connector]
+    CONN --> DOWN[Enterprise system]
+    DOWN --> POST[ThinkPixelGR post_tool]
+    POST --> USAGE[Trusted usage]
+    USAGE --> AG
+    POST --> EVID[Evidence / outbox]
 ```
 
 Codex is one possible harness, not part of ThinkPixelTG's security model. Replacing Codex with another harness should not change authorization, approval, credential, retry, or evidence semantics.
@@ -417,20 +401,12 @@ If security-relevant arguments change, the approval no longer matches.
 
 ThinkPixelGR is integrated at the tool boundary:
 
-```text
-validated + authorized call
-    |
-    v
-ThinkPixelGR pre_tool
-    |
-    v
-credential resolution + connector execution
-    |
-    v
-ThinkPixelGR post_tool
-    |
-    v
-bounded result returned to harness
+```mermaid
+flowchart TB
+    CALL[Validated and authorized call] --> PRE[ThinkPixelGR pre_tool]
+    PRE --> EXEC[Credential resolution and connector execution]
+    EXEC --> POST[ThinkPixelGR post_tool]
+    POST --> RESULT[Bounded result returned to harness]
 ```
 
 A `pre_tool` transformation that changes security-relevant arguments must trigger the required canonicalization and authorization/approval revalidation before execution.
@@ -494,12 +470,14 @@ Each tool version declares one trusted retry class:
 
 A timeout does not prove a write failed.
 
-```text
-ThinkPixelTG ----------> downstream write
-       |
-       | downstream commits
-       |
-       X response becomes unknowable
+```mermaid
+sequenceDiagram
+    participant TG as ThinkPixelTG
+    participant DS as Downstream system
+    TG->>DS: Write request
+    DS->>DS: Commit side effect
+    DS--xTG: Response lost or unknowable
+    Note over TG,DS: Outcome is ambiguous until safely reconciled
 ```
 
 The result is **ambiguous**.
@@ -510,12 +488,7 @@ ThinkPixelTG represents that uncertainty explicitly rather than automatically re
 
 MCP is a harness-facing adapter over ThinkPixelTG's canonical tool semantics.
 
-The initial scope is expected to include:
-
-```text
-tools/list
-tools/call
-```
+The initial scope includes `tools/list` and `tools/call`.
 
 Tool names, schemas, and annotations are derived from the trusted tool catalog.
 
@@ -531,45 +504,35 @@ Client-side MCP confirmation is useful UX but is not authoritative platform appr
 
 ThinkPixelTG is designed to sit naturally beneath a Codex harness:
 
-```text
-ThinkPixelAG
-    |
-    | governed run
-    v
-runtime worker
-    |
-    v
-Codex App Server
-    |
-    | MCP tool calls
-    v
-ThinkPixelTG
-    |
-    +--> ThinkPixelAG authorization
-    +--> ThinkPixelGR
-    +--> credential broker
-    +--> governed connector
+```mermaid
+flowchart TB
+    AG[ThinkPixelAG] -->|Governed run| WORKER[Runtime worker]
+    WORKER --> CODEX[Codex App Server]
+    CODEX -->|MCP tool calls| TG[ThinkPixelTG]
+    TG --> AUTH[ThinkPixelAG authorization]
+    AUTH --> GR[ThinkPixelGR]
+    GR --> CRED[Credential broker]
+    CRED --> CONN[Governed connector]
 ```
 
 The Codex worker should not have direct egress to enterprise APIs that are meant to be mediated by ThinkPixelTG.
 
 A reference Kubernetes deployment should enforce approximately:
 
-```text
-Harness worker:
-    allow -> ThinkPixelTG
-    allow -> ThinkPixelLLMGW
-    allow -> required AG/runtime dependencies
+```mermaid
+flowchart LR
+    H[Harness worker]
+    H -->|Allow| TG[ThinkPixelTG]
+    H -->|Allow| GW[ThinkPixelLLMGW]
+    H -->|Allow| RUNTIME[Required AG / runtime dependencies]
+    H -.->|Deny direct access| GH[GitHub API]
+    H -.->|Deny direct access| SL[Slack API]
+    H -.->|Deny direct access| K8S[Production Kubernetes API]
 
-    deny  -> GitHub API directly
-    deny  -> Slack API directly
-    deny  -> production Kubernetes API directly
-
-ThinkPixelTG:
-    allow -> ThinkPixelAG
-    allow -> ThinkPixelGR
-    allow -> PostgreSQL / optional Valkey / credential services
-    allow -> explicitly configured downstream APIs
+    TG -->|Allow| AG[ThinkPixelAG]
+    TG -->|Allow| GR[ThinkPixelGR]
+    TG -->|Allow| STATE[PostgreSQL / optional Valkey / credential services]
+    TG -->|Allow configured destinations| DOWN[Enterprise APIs]
 ```
 
 If the harness can bypass the gateway, ThinkPixelTG is not the actual enforcement boundary.
@@ -639,49 +602,26 @@ The implementation should prefer the Go standard library and narrow, mature depe
 
 ## Proposed repository layout
 
-```text
-/
-├── cmd/
-│   ├── thinkpixeltg/
-│   ├── thinkpixeltg-mcp/
-│   └── migrate/
-├── internal/
-│   ├── domain/
-│   ├── app/
-│   ├── ports/
-│   ├── adapters/
-│   │   ├── http/
-│   │   ├── mcp/
-│   │   ├── postgres/
-│   │   ├── valkey/
-│   │   ├── auth/
-│   │   ├── thinkpixelag/
-│   │   ├── thinkpixelgr/
-│   │   ├── credentials/
-│   │   ├── connectors/
-│   │   └── evidence/
-│   ├── canonicaljson/
-│   ├── schema/
-│   ├── telemetry/
-│   └── config/
-├── api/
-│   └── openapi.yaml
-├── deployments/
-│   ├── kubernetes/
-│   └── compose/
-├── test/
-│   ├── integration/
-│   ├── conformance/
-│   ├── security/
-│   └── fixtures/
-├── docs/
-│   ├── contracts/
-│   ├── adr/
-│   └── threat-model.md
-├── Makefile
-├── go.mod
-├── PLAN.md
-└── TODO.md
+```mermaid
+flowchart TB
+    ROOT[Repository root]
+    ROOT --> CMD[cmd]
+    CMD --> SERVER[thinkpixeltg]
+    CMD --> MCPBIN[thinkpixeltg-mcp]
+    CMD --> MIGRATE[migrate]
+    ROOT --> INTERNAL[internal]
+    INTERNAL --> DOMAIN[domain / app / ports]
+    INTERNAL --> ADAPTERS[adapters]
+    ADAPTERS --> EDGE[http / mcp / auth]
+    ADAPTERS --> STATE[postgres / valkey]
+    ADAPTERS --> POLICY[thinkpixelag / thinkpixelgr]
+    ADAPTERS --> EXEC[credentials / connectors / evidence]
+    INTERNAL --> SUPPORT[canonicaljson / schema / telemetry / config]
+    ROOT --> API[api / openapi.yaml]
+    ROOT --> DEPLOY[deployments / kubernetes / compose]
+    ROOT --> TEST[test / integration / conformance / security / fixtures]
+    ROOT --> DOCS[docs / architecture / security / contracts / ADRs / operations]
+    ROOT --> PROJECT[Makefile / go.mod / PLAN.md / TODO.md]
 ```
 
 Domain and application packages must not depend directly on HTTP, MCP, PostgreSQL, ThinkPixelAG, ThinkPixelGR, or provider SDK types.
@@ -773,34 +713,16 @@ High-value scenarios include proving that:
 
 Before building a broad connector catalog, the first complete integration should prove one governed side effect:
 
-```text
-Tool:
-    github.pull.comment
-
-Harness:
-    Codex or a minimal MCP client
-
-Identity:
-    run-scoped bearer token + trusted tenant/agent/run mapping
-
-Authorization:
-    ThinkPixelAG adapter
-    or a contract-faithful fake during early development
-
-Guardrails:
-    ThinkPixelGR pre_tool + post_tool
-
-Credential:
-    GitHub credential obtained through a non-harness provider
-
-Idempotency:
-    stable tool_call_id + documented replay semantics
-
-Persistence:
-    invocation + attempts + decisions + outbox in PostgreSQL
-
-Metering:
-    one trusted tool_calls usage event
+```mermaid
+flowchart TB
+    TOOL[github.pull.comment] --> H[Codex or minimal MCP harness]
+    H --> ID[Run-scoped token and trusted tenant / agent / run mapping]
+    ID --> AUTH[ThinkPixelAG adapter or contract-faithful fake]
+    AUTH --> GR[ThinkPixelGR pre_tool and post_tool]
+    GR --> CRED[GitHub credential from a non-harness provider]
+    CRED --> IDEM[Stable tool_call_id and documented replay semantics]
+    IDEM --> PG[PostgreSQL invocation, attempts, decisions, and outbox]
+    PG --> METER[One trusted tool_calls usage event]
 ```
 
 Acceptance criteria:
@@ -870,11 +792,18 @@ If those statements remain true when the harness, model, connector set, and MCP 
 
 ## Documentation
 
-- [PLAN.md](PLAN.md) — target architecture, security invariants, delivery phases, and release gates.
-- `TODO.md` — ordered implementation ledger once created.
-- `api/openapi.yaml` — canonical REST contract once implemented.
-- `docs/threat-model.md` — durable threat model once Phase 0 is completed.
-- `docs/adr/` — architecture decision records.
+- [Implementation plan](PLAN.md) and [delivery ledger](TODO.md)
+- [Phase 0 completion evidence](docs/phase-0-evidence.md)
+- [System context and trust boundaries](docs/architecture/system-context.md)
+- [Glossary and authoritative ownership](docs/architecture/glossary-and-ownership.md)
+- [Threat model](docs/security/threat-model.md), [data classification](docs/security/data-classification.md), and [Phase 0 authority review](docs/security/phase-0-authority-review.md)
+- [Tool catalog](docs/contracts/tool-catalog.md), [invocation state machine](docs/contracts/invocation-state-machine.md), [canonical JSON](docs/contracts/canonical-json.md), and [retry/idempotency](docs/contracts/retry-idempotency.md)
+- [ThinkPixelAG authorization](docs/contracts/thinkpixelag-authorization.md), [action approval](docs/contracts/thinkpixelag-approval.md), and [ThinkPixelGR](docs/contracts/thinkpixelgr.md) contracts
+- [Credential provider](docs/contracts/credential-provider.md), [connector](docs/contracts/connector.md), and [evidence](docs/contracts/evidence.md) contracts
+- [Canonical REST rules](docs/contracts/rest-api.md), [OpenAPI 3.1 contract](api/openapi.yaml), and [MCP compatibility baseline](docs/contracts/mcp.md)
+- [PostgreSQL transaction boundaries](docs/contracts/postgresql-transactions.md) and [logical schema draft](docs/contracts/postgresql-schema.sql)
+- [Supported versions](docs/supported-versions.md) and [initial SLO/capacity targets](docs/operations/slos-and-capacity.md)
+- [ADR index and template](docs/adr/README.md)
 
 ## License
 
