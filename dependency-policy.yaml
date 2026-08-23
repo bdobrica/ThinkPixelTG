@@ -2,6 +2,7 @@ version: 1
 allowed_module_sources:
   - cel.dev
   - cloud.google.com
+  - filippo.io
   - github.com
   - go.opentelemetry.io
   - go.uber.org
@@ -10,6 +11,8 @@ allowed_module_sources:
   - gonum.org
   - google.golang.org
   - gopkg.in
+  - howett.net
+  - modernc.org
 licenses:
   allow:
     - Apache-2.0

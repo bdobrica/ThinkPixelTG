@@ -68,7 +68,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 
 ## Phase 2 — Authoritative persistence and invocation primitives
 
-- [ ] DATA-001 Select and wrap the PostgreSQL driver, migration approach, query/repository strategy, and transaction abstraction; record the consequential decision in an ADR.
+- [x] DATA-001 Select and wrap the PostgreSQL driver, migration approach, query/repository strategy, and transaction abstraction; record the consequential decision in an ADR.
 - [ ] DATA-002 Create migrations for tenants or tenant references, tools, immutable tool versions, tenant exposure/publication state, connector instances, and credential-binding references with integrity constraints and indexes.
 - [ ] DATA-003 Create migrations for logical invocations, canonical argument digests, trusted resource projection, current invocation state/version, timestamps, terminal classifications, and unique `(tenant_id, run_id, tool_call_id)` identity.
 - [ ] DATA-004 Create migrations for invocation attempts, monotonic attempt sequence, owner/claim/fencing data, downstream request/result identifiers, retry classification, ambiguity classification, and reconciliation metadata.

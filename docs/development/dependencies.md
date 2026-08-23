@@ -18,6 +18,8 @@ dependencies and must pass the complete verification gate.
 | `go.opentelemetry.io/otel`, `otel/trace`, `otel/sdk` | observability maintainers | tracing API/SDK, confined to telemetry bootstrap and application-safe trace interfaces |
 | `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp` | observability maintainers | OTLP/HTTP export adapter, confined to `internal/telemetry` |
 | `go.opentelemetry.io/otel/exporters/stdout/stdouttrace` | observability maintainers | local-development trace sink, confined to `internal/telemetry` |
+| `github.com/jackc/pgx/v5` | persistence maintainers | native PostgreSQL driver, pool, query, and transaction APIs, confined to PostgreSQL adapters and migration wiring |
+| `github.com/pressly/goose/v3` | persistence maintainers | embedded, forward-only SQL migration provider, confined to the migration adapter and command |
 
 Generated OpenAPI transport models and strict server interfaces are produced by
 the exactly pinned `oapi-codegen` tool into `internal/adapters/http/openapi/openapi.gen.go`.
