@@ -27,7 +27,13 @@ func TestEmbeddedMigrationsAreAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read embedded migrations: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Name() != "00001_catalog.sql" {
-		t.Fatalf("embedded migrations = %v, want 00001_catalog.sql", entries)
+	want := []string{"00001_catalog.sql", "00002_invocations.sql"}
+	if len(entries) != len(want) {
+		t.Fatalf("embedded migration count = %d, want %d", len(entries), len(want))
+	}
+	for i := range want {
+		if entries[i].Name() != want[i] {
+			t.Fatalf("embedded migration %d = %q, want %q", i, entries[i].Name(), want[i])
+		}
 	}
 }

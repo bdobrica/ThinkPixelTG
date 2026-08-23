@@ -16,6 +16,15 @@ import (
 )
 
 func TestMigrationCatalogSchema(t *testing.T) {
+	db := migratedTestDatabase(t)
+	ctx := context.Background()
+
+	assertCatalogTables(t, ctx, db)
+	assertCatalogIntegrity(t, ctx, db)
+}
+
+func migratedTestDatabase(t *testing.T) *sql.DB {
+	t.Helper()
 	databaseURL := os.Getenv("TPTG_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("TPTG_TEST_DATABASE_URL is not set")
@@ -53,9 +62,33 @@ func TestMigrationCatalogSchema(t *testing.T) {
 	if err := Up(ctx, provider); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
+	return db
+}
 
-	assertCatalogTables(t, ctx, db)
-	assertCatalogIntegrity(t, ctx, db)
+func assertSchemaObjects(t *testing.T, ctx context.Context, db *sql.DB, tables, indexes []string) {
+	t.Helper()
+	for _, table := range tables {
+		var exists bool
+		if err := db.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = current_schema() AND table_name = $1)`, table).Scan(&exists); err != nil {
+			t.Fatalf("query table %s: %v", table, err)
+		}
+		if !exists {
+			t.Errorf("table %s does not exist", table)
+		}
+	}
+	for _, index := range indexes {
+		var exists bool
+		if err := db.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_indexes
+			WHERE schemaname = current_schema() AND indexname = $1)`, index).Scan(&exists); err != nil {
+			t.Fatalf("query index %s: %v", index, err)
+		}
+		if !exists {
+			t.Errorf("index %s does not exist", index)
+		}
+	}
 }
 
 func assertCatalogTables(t *testing.T, ctx context.Context, db *sql.DB) {
