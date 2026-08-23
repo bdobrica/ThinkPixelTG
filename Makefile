@@ -6,6 +6,8 @@ REDOCLY_VERSION ?= 2.46.2
 GO_PACKAGES ?= ./...
 BUILD_DIR ?= build
 IMAGE ?= thinkpixeltg:dev
+COMPOSE ?= docker compose
+COMPOSE_FILE ?= deployments/compose/compose.yaml
 TOOLS_RUN := ./scripts/run-go-tool.sh
 PROJECT_TMP ?= $(CURDIR)/.tmp
 export TMPDIR := $(PROJECT_TMP)
@@ -15,7 +17,7 @@ export TMPDIR := $(PROJECT_TMP)
 .PHONY: prepare tools generate generate-check fmt fmt-check lint vet test test-race \
 	test-integration test-e2e test-security test-mcp-conformance openapi-check \
 	migration-test dependency-check license-check vuln-check build image \
-	verify verify-phase0 clean
+	verify verify-phase0 compose-up compose-down compose-clean clean
 
 prepare:
 	mkdir -p $(PROJECT_TMP)
@@ -93,6 +95,15 @@ build:
 
 image:
 	$(DOCKER) build --tag $(IMAGE) .
+
+compose-up:
+	$(COMPOSE) --file $(COMPOSE_FILE) up --detach --wait
+
+compose-down:
+	$(COMPOSE) --file $(COMPOSE_FILE) down --remove-orphans
+
+compose-clean:
+	$(COMPOSE) --file $(COMPOSE_FILE) down --volumes --remove-orphans
 
 verify-phase0: openapi-check
 	git diff HEAD --check

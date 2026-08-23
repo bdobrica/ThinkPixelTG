@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1.19.0
+FROM golang:1.27.0-alpine3.23@sha256:3747dcba41c8b0db3211fda4db61638b980e17ac5bb3c94460a975a9cfe19395 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/governance-fake ./cmd/governance-fake
+COPY internal/adapters/fakes ./internal/adapters/fakes
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/governance-fake ./cmd/governance-fake
+
+FROM scratch
+COPY --from=build /out/governance-fake /governance-fake
+USER 65532:65532
+ENTRYPOINT ["/governance-fake"]
