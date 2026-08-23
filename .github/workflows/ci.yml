@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOFLAGS: -mod=readonly
+
+jobs:
+  quality:
+    name: Formatting, generation, lint, vet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/*/go.sum
+      - run: make fmt-check generate
+      - name: Reject generated drift
+        run: git diff --exit-code
+      - run: make lint vet
+
+  unit-race-fuzz:
+    name: Unit, race, fuzz smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: make test test-race
+      - name: Fuzz smoke
+        run: |
+          go test ./internal/domain -run '^$' -fuzz '^FuzzParseUUID$' -fuzztime=5s
+          go test ./internal/domain -run '^$' -fuzz '^FuzzDecodeCursor$' -fuzztime=5s
+          go test ./internal/domain -run '^$' -fuzz '^FuzzCheckedAdd$' -fuzztime=5s
+
+  integration:
+    name: PostgreSQL integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941
+        env:
+          POSTGRES_DB: thinkpixeltg_test
+          POSTGRES_USER: thinkpixeltg_test
+          POSTGRES_PASSWORD: integration-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U thinkpixeltg_test -d thinkpixeltg_test"
+          --health-interval 2s --health-timeout 2s --health-retries 20
+    env:
+      TPTG_TEST_DATABASE_URL: postgres://thinkpixeltg_test:integration-only-password@127.0.0.1:5432/thinkpixeltg_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: make test-integration migration-test
+
+  security:
+    name: Security and dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/*/go.sum
+      - run: make test-security dependency-check
+
+  contracts:
+    name: OpenAPI and MCP contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: make openapi-check test-mcp-conformance verify-phase0
+
+  build:
+    name: Static binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: make build
+      - name: Verify static binaries
+        run: |
+          test -x build/thinkpixeltg
+          test -x build/thinkpixeltg-mcp
+          test -x build/migrate
+          test -x build/governance-fake
+
+  container-smoke:
+    name: Scratch container smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Build pinned fake image
+        run: docker build --file deployments/compose/Dockerfile.fakes --tag thinkpixeltg-governance-fake:ci .
+      - name: Smoke non-root shell-free runtime
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' thinkpixeltg-governance-fake:ci)" = "65532:65532"
+          test -z "$(docker image inspect --format '{{json .Config.Shell}}' thinkpixeltg-governance-fake:ci | tr -d 'null')"
+          container_id=$(docker run --detach --read-only --cap-drop=ALL --publish 18081:8080 thinkpixeltg-governance-fake:ci -kind=ag)
+          trap 'docker rm --force "$container_id"' EXIT
+          for attempt in $(seq 1 20); do curl --fail --silent http://127.0.0.1:18081/healthz && exit 0; sleep 1; done
+          docker logs "$container_id"
+          exit 1
