@@ -78,6 +78,7 @@ openapi-check:
 
 migration-test:
 	node scripts/validate-phase0.mjs
+	$(GO) test -tags=integration ./internal/adapters/postgres/migrations -run 'Migration'
 
 dependency-check:
 	$(GO) mod verify
