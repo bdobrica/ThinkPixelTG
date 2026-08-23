@@ -75,7 +75,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] DATA-005 Create migrations for authorization decisions, GR evaluations, action-approval references/bindings, execution-result metadata, and security-relevant digests without persisting raw credentials.
 - [x] DATA-006 Create migrations for trusted usage events, audit/evidence records, idempotency/replay records, and transactional outbox claim/retry/dead-letter fields.
 - [x] DATA-007 Implement PostgreSQL pool configuration, dependency readiness, statement/transaction timeouts, transaction helpers, retriable-error classification, telemetry, and shutdown behavior.
-- [ ] DATA-008 Implement tenant-scoped repositories for tool catalog, connector instances, credential bindings, invocations, attempts, decisions, approvals, results, usage, audit, and outbox; test rollback and cross-tenant isolation.
+- [x] DATA-008 Implement tenant-scoped repositories for tool catalog, connector instances, credential bindings, invocations, attempts, decisions, approvals, results, usage, audit, and outbox; test rollback and cross-tenant isolation.
 - [ ] DATA-009 Implement canonical JSON normalization and digest library with deterministic fixtures, malformed-number rejection, Unicode/object-order cases, schema-aware boundary tests, property tests, and fuzz campaigns.
 - [ ] DATA-010 Implement trusted resource projection from validated normalized arguments; reject missing/ambiguous projections required by the tool contract and test injection/edge cases.
 - [ ] DATA-011 Implement the pure invocation state machine with actor permissions, legal/illegal transitions, optimistic versioning, terminal immutability, approval wait, ambiguity/manual-review semantics, and table/fuzz tests.
