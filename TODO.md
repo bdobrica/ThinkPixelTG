@@ -50,7 +50,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 
 ## Phase 1 — Engineering foundation
 
-- [ ] ENG-001 Initialize the Go module and pin the Go/toolchain version; create the planned `cmd`, `internal`, `api`, `migrations`, `deployments`, `docs`, and `test` package boundaries without importing adapter/provider types into domain/application packages.
+- [x] ENG-001 Initialize the Go module and pin the Go/toolchain version; create the planned `cmd`, `internal`, `api`, `migrations`, `deployments`, `docs`, and `test` package boundaries without importing adapter/provider types into domain/application packages.
 - [ ] ENG-002 Establish dependency policy, license/source checks, vulnerability scanning, reproducible tool pinning, generated-file policy, and a documented exception process for consequential dependencies.
 - [ ] ENG-003 Implement strict typed configuration with environment/flag/file loading as selected, safe defaults, startup validation, unknown/unsafe option rejection, production/development mode separation, and secret-safe rendering tests.
 - [ ] ENG-004 Implement structured logging with request/trace correlation, stable event names, centralized recursive redaction, cardinality discipline, and secret-canary leakage tests.
