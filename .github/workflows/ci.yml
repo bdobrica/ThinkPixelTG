@@ -122,19 +122,9 @@ jobs:
           test -x build/governance-fake
 
   container-smoke:
-    name: Scratch container smoke
+    name: Hardened service container smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Build pinned fake image
-        run: docker build --file deployments/compose/Dockerfile.fakes --tag thinkpixeltg-governance-fake:ci .
-      - name: Smoke non-root shell-free runtime
-        run: |
-          test "$(docker image inspect --format '{{.Config.User}}' thinkpixeltg-governance-fake:ci)" = "65532:65532"
-          test -z "$(docker image inspect --format '{{json .Config.Shell}}' thinkpixeltg-governance-fake:ci | tr -d 'null')"
-          container_id=$(docker run --detach --read-only --cap-drop=ALL --publish 18081:8080 thinkpixeltg-governance-fake:ci -kind=ag)
-          trap 'docker rm --force "$container_id"' EXIT
-          for attempt in $(seq 1 20); do curl --fail --silent http://127.0.0.1:18081/healthz && exit 0; sleep 1; done
-          docker logs "$container_id"
-          exit 1
+      - run: make container-smoke IMAGE=thinkpixeltg:ci

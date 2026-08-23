@@ -16,7 +16,7 @@ export TMPDIR := $(PROJECT_TMP)
 
 .PHONY: prepare tools generate generate-check fmt fmt-check lint vet test test-race \
 	test-integration test-e2e test-security test-mcp-conformance openapi-check \
-	migration-test dependency-check license-check vuln-check build image \
+	migration-test dependency-check license-check vuln-check build image container-smoke \
 	verify verify-phase0 compose-up compose-down compose-clean clean
 
 prepare:
@@ -95,6 +95,9 @@ build:
 
 image:
 	$(DOCKER) build --tag $(IMAGE) .
+
+container-smoke: image
+	./scripts/container-smoke.sh $(IMAGE)
 
 compose-up:
 	$(COMPOSE) --file $(COMPOSE_FILE) up --detach --wait

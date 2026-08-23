@@ -1,0 +1,12 @@
+.git
+.github
+.tmp
+build
+deployments
+docs
+migrations
+scripts
+test
+tools
+*.md
+dependency-policy.yaml
