@@ -1,0 +1,19 @@
+version: 1
+allowed_module_sources:
+  - github.com
+  - go.opentelemetry.io
+  - golang.org
+  - google.golang.org
+licenses:
+  allow:
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+    - MIT
+  deny:
+    - AGPL-1.0-only
+    - AGPL-1.0-or-later
+    - AGPL-3.0-only
+    - AGPL-3.0-or-later
+exceptions: docs/development/dependency-exceptions.yaml
