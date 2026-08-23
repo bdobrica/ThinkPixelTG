@@ -62,3 +62,13 @@ func TestStringRedactsSecrets(t *testing.T) {
 		t.Fatalf("redaction marker missing: %s", rendered)
 	}
 }
+
+func TestDatabaseConfigurationFromEnvironment(t *testing.T) {
+	cfg, err := Load(nil, []string{"TPTG_DATABASE_MAX_CONNECTIONS=7", "TPTG_DATABASE_STATEMENT_TIMEOUT=3s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Database.MaxConnections != 7 || cfg.Database.StatementTimeout.String() != "3s" {
+		t.Fatalf("database configuration not applied: %+v", cfg.Database)
+	}
+}

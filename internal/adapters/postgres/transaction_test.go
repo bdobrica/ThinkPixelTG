@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -16,6 +17,19 @@ type fakeBeginner struct {
 	err        error
 	options    pgx.TxOptions
 	beginCalls int
+}
+
+func TestTransactorBoundsCallback(t *testing.T) {
+	t.Parallel()
+	tx := &fakeTx{}
+	transactor, err := NewTransactorWithTimeout(&fakeBeginner{tx: tx}, time.Millisecond, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = transactor.WithinTransaction(context.Background(), pgx.TxOptions{}, func(ctx context.Context, _ DBTX) error { <-ctx.Done(); return ctx.Err() })
+	if !errors.Is(err, context.DeadlineExceeded) || tx.rollbacks != 1 {
+		t.Fatalf("error=%v rollbacks=%d", err, tx.rollbacks)
+	}
 }
 
 func (f *fakeBeginner) BeginTx(_ context.Context, options pgx.TxOptions) (pgx.Tx, error) {

@@ -46,7 +46,19 @@ type Telemetry struct {
 }
 
 type Database struct {
-	URL string
+	URL                    string
+	MaxConnections         int32
+	MinConnections         int32
+	MaxConnectionLifetime  time.Duration
+	MaxConnectionIdleTime  time.Duration
+	HealthCheckPeriod      time.Duration
+	ConnectTimeout         time.Duration
+	ReadinessTimeout       time.Duration
+	StatementTimeout       time.Duration
+	LockTimeout            time.Duration
+	IdleTransactionTimeout time.Duration
+	TransactionTimeout     time.Duration
+	ShutdownTimeout        time.Duration
 }
 
 type fileConfig struct {
@@ -74,7 +86,19 @@ type fileTelemetry struct {
 }
 
 type fileDatabase struct {
-	URL *string `json:"url"`
+	URL                    *string `json:"url"`
+	MaxConnections         *int32  `json:"max_connections"`
+	MinConnections         *int32  `json:"min_connections"`
+	MaxConnectionLifetime  *string `json:"max_connection_lifetime"`
+	MaxConnectionIdleTime  *string `json:"max_connection_idle_time"`
+	HealthCheckPeriod      *string `json:"health_check_period"`
+	ConnectTimeout         *string `json:"connect_timeout"`
+	ReadinessTimeout       *string `json:"readiness_timeout"`
+	StatementTimeout       *string `json:"statement_timeout"`
+	LockTimeout            *string `json:"lock_timeout"`
+	IdleTransactionTimeout *string `json:"idle_transaction_timeout"`
+	TransactionTimeout     *string `json:"transaction_timeout"`
+	ShutdownTimeout        *string `json:"shutdown_timeout"`
 }
 
 func Default() Config {
@@ -91,6 +115,14 @@ func Default() Config {
 			MaxBodyBytes:      1 << 20,
 		},
 		Telemetry: Telemetry{Mode: "noop"},
+		Database: Database{
+			MaxConnections: 20, MinConnections: 0,
+			MaxConnectionLifetime: time.Hour, MaxConnectionIdleTime: 30 * time.Minute,
+			HealthCheckPeriod: time.Minute, ConnectTimeout: 5 * time.Second,
+			ReadinessTimeout: 2 * time.Second, StatementTimeout: 5 * time.Second,
+			LockTimeout: 2 * time.Second, IdleTransactionTimeout: 15 * time.Second,
+			TransactionTimeout: 10 * time.Second, ShutdownTimeout: 5 * time.Second,
+		},
 	}
 }
 
@@ -220,8 +252,53 @@ func (input fileConfig) apply(cfg *Config) error {
 			cfg.Telemetry.Endpoint = *input.Telemetry.Endpoint
 		}
 	}
-	if input.Database != nil && input.Database.URL != nil {
-		cfg.Database.URL = *input.Database.URL
+	if input.Database != nil {
+		if input.Database.URL != nil {
+			cfg.Database.URL = *input.Database.URL
+		}
+		if input.Database.MaxConnections != nil {
+			cfg.Database.MaxConnections = *input.Database.MaxConnections
+		}
+		if input.Database.MinConnections != nil {
+			cfg.Database.MinConnections = *input.Database.MinConnections
+		}
+		for name, value := range map[string]*string{
+			"max_connection_lifetime": input.Database.MaxConnectionLifetime, "max_connection_idle_time": input.Database.MaxConnectionIdleTime,
+			"health_check_period": input.Database.HealthCheckPeriod, "connect_timeout": input.Database.ConnectTimeout,
+			"readiness_timeout": input.Database.ReadinessTimeout, "statement_timeout": input.Database.StatementTimeout,
+			"lock_timeout": input.Database.LockTimeout, "idle_transaction_timeout": input.Database.IdleTransactionTimeout,
+			"transaction_timeout": input.Database.TransactionTimeout, "shutdown_timeout": input.Database.ShutdownTimeout,
+		} {
+			if value == nil {
+				continue
+			}
+			duration, err := time.ParseDuration(*value)
+			if err != nil {
+				return fmt.Errorf("database.%s: %w", name, err)
+			}
+			switch name {
+			case "max_connection_lifetime":
+				cfg.Database.MaxConnectionLifetime = duration
+			case "max_connection_idle_time":
+				cfg.Database.MaxConnectionIdleTime = duration
+			case "health_check_period":
+				cfg.Database.HealthCheckPeriod = duration
+			case "connect_timeout":
+				cfg.Database.ConnectTimeout = duration
+			case "readiness_timeout":
+				cfg.Database.ReadinessTimeout = duration
+			case "statement_timeout":
+				cfg.Database.StatementTimeout = duration
+			case "lock_timeout":
+				cfg.Database.LockTimeout = duration
+			case "idle_transaction_timeout":
+				cfg.Database.IdleTransactionTimeout = duration
+			case "transaction_timeout":
+				cfg.Database.TransactionTimeout = duration
+			case "shutdown_timeout":
+				cfg.Database.ShutdownTimeout = duration
+			}
+		}
 	}
 	return nil
 }
@@ -233,6 +310,36 @@ var envSetters = map[string]func(*Config, string) error{
 	"TPTG_TELEMETRY_MODE":     func(c *Config, v string) error { c.Telemetry.Mode = v; return nil },
 	"TPTG_TELEMETRY_ENDPOINT": func(c *Config, v string) error { c.Telemetry.Endpoint = v; return nil },
 	"TPTG_DEV_AUTH":           func(c *Config, v string) error { parsed, err := strconv.ParseBool(v); c.DevAuth = parsed; return err },
+	"TPTG_DATABASE_MAX_CONNECTIONS": func(c *Config, v string) error {
+		parsed, err := strconv.ParseInt(v, 10, 32)
+		c.Database.MaxConnections = int32(parsed)
+		return err
+	},
+	"TPTG_DATABASE_MIN_CONNECTIONS": func(c *Config, v string) error {
+		parsed, err := strconv.ParseInt(v, 10, 32)
+		c.Database.MinConnections = int32(parsed)
+		return err
+	},
+	"TPTG_DATABASE_MAX_CONNECTION_LIFETIME":  databaseDuration(func(c *Config, v time.Duration) { c.Database.MaxConnectionLifetime = v }),
+	"TPTG_DATABASE_MAX_CONNECTION_IDLE_TIME": databaseDuration(func(c *Config, v time.Duration) { c.Database.MaxConnectionIdleTime = v }),
+	"TPTG_DATABASE_HEALTH_CHECK_PERIOD":      databaseDuration(func(c *Config, v time.Duration) { c.Database.HealthCheckPeriod = v }),
+	"TPTG_DATABASE_CONNECT_TIMEOUT":          databaseDuration(func(c *Config, v time.Duration) { c.Database.ConnectTimeout = v }),
+	"TPTG_DATABASE_READINESS_TIMEOUT":        databaseDuration(func(c *Config, v time.Duration) { c.Database.ReadinessTimeout = v }),
+	"TPTG_DATABASE_STATEMENT_TIMEOUT":        databaseDuration(func(c *Config, v time.Duration) { c.Database.StatementTimeout = v }),
+	"TPTG_DATABASE_LOCK_TIMEOUT":             databaseDuration(func(c *Config, v time.Duration) { c.Database.LockTimeout = v }),
+	"TPTG_DATABASE_IDLE_TRANSACTION_TIMEOUT": databaseDuration(func(c *Config, v time.Duration) { c.Database.IdleTransactionTimeout = v }),
+	"TPTG_DATABASE_TRANSACTION_TIMEOUT":      databaseDuration(func(c *Config, v time.Duration) { c.Database.TransactionTimeout = v }),
+	"TPTG_DATABASE_SHUTDOWN_TIMEOUT":         databaseDuration(func(c *Config, v time.Duration) { c.Database.ShutdownTimeout = v }),
+}
+
+func databaseDuration(set func(*Config, time.Duration)) func(*Config, string) error {
+	return func(cfg *Config, input string) error {
+		value, err := time.ParseDuration(input)
+		if err == nil {
+			set(cfg, value)
+		}
+		return err
+	}
 }
 
 func applyEnvironment(cfg *Config, environ []string) error {
@@ -261,6 +368,18 @@ func applyFlags(cfg *Config, args []string) error {
 	set.StringVar(&cfg.Telemetry.Mode, "telemetry-mode", cfg.Telemetry.Mode, "noop, local, or otlp")
 	set.StringVar(&cfg.Telemetry.Endpoint, "telemetry-endpoint", cfg.Telemetry.Endpoint, "OTLP endpoint")
 	set.StringVar(&cfg.Database.URL, "database-url", cfg.Database.URL, "PostgreSQL URL")
+	set.Var((*int64Value)(&cfg.Database.MaxConnections), "database-max-connections", "maximum PostgreSQL pool connections")
+	set.Var((*int64Value)(&cfg.Database.MinConnections), "database-min-connections", "minimum PostgreSQL pool connections")
+	set.DurationVar(&cfg.Database.MaxConnectionLifetime, "database-max-connection-lifetime", cfg.Database.MaxConnectionLifetime, "maximum PostgreSQL connection lifetime")
+	set.DurationVar(&cfg.Database.MaxConnectionIdleTime, "database-max-connection-idle-time", cfg.Database.MaxConnectionIdleTime, "maximum PostgreSQL connection idle time")
+	set.DurationVar(&cfg.Database.HealthCheckPeriod, "database-health-check-period", cfg.Database.HealthCheckPeriod, "PostgreSQL pool health check period")
+	set.DurationVar(&cfg.Database.ConnectTimeout, "database-connect-timeout", cfg.Database.ConnectTimeout, "PostgreSQL connection timeout")
+	set.DurationVar(&cfg.Database.ReadinessTimeout, "database-readiness-timeout", cfg.Database.ReadinessTimeout, "PostgreSQL readiness timeout")
+	set.DurationVar(&cfg.Database.StatementTimeout, "database-statement-timeout", cfg.Database.StatementTimeout, "PostgreSQL statement timeout")
+	set.DurationVar(&cfg.Database.LockTimeout, "database-lock-timeout", cfg.Database.LockTimeout, "PostgreSQL lock timeout")
+	set.DurationVar(&cfg.Database.IdleTransactionTimeout, "database-idle-transaction-timeout", cfg.Database.IdleTransactionTimeout, "PostgreSQL idle transaction timeout")
+	set.DurationVar(&cfg.Database.TransactionTimeout, "database-transaction-timeout", cfg.Database.TransactionTimeout, "application transaction timeout")
+	set.DurationVar(&cfg.Database.ShutdownTimeout, "database-shutdown-timeout", cfg.Database.ShutdownTimeout, "PostgreSQL shutdown timeout")
 	set.BoolVar(&cfg.DevAuth, "dev-auth", cfg.DevAuth, "enable development authentication")
 	if err := set.Parse(args); err != nil {
 		return fmt.Errorf("parse flags: %w", err)
@@ -272,6 +391,14 @@ func applyFlags(cfg *Config, args []string) error {
 }
 
 type modeValue Mode
+type int64Value int32
+
+func (value *int64Value) String() string { return strconv.FormatInt(int64(*value), 10) }
+func (value *int64Value) Set(input string) error {
+	parsed, err := strconv.ParseInt(input, 10, 32)
+	*value = int64Value(parsed)
+	return err
+}
 
 func (value *modeValue) String() string         { return string(*value) }
 func (value *modeValue) Set(input string) error { *value = modeValue(input); return nil }
@@ -302,6 +429,23 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.Mode == ModeProduction && cfg.DevAuth {
 		return errors.New("development authentication is forbidden in production")
+	}
+	if cfg.Database.MinConnections < 0 || cfg.Database.MaxConnections < 1 || cfg.Database.MinConnections > cfg.Database.MaxConnections {
+		return errors.New("database connection limits are invalid")
+	}
+	for name, duration := range map[string]time.Duration{
+		"max connection lifetime": cfg.Database.MaxConnectionLifetime, "max connection idle time": cfg.Database.MaxConnectionIdleTime,
+		"health check period": cfg.Database.HealthCheckPeriod, "connect": cfg.Database.ConnectTimeout,
+		"readiness": cfg.Database.ReadinessTimeout, "statement": cfg.Database.StatementTimeout,
+		"lock": cfg.Database.LockTimeout, "idle transaction": cfg.Database.IdleTransactionTimeout,
+		"transaction": cfg.Database.TransactionTimeout, "shutdown": cfg.Database.ShutdownTimeout,
+	} {
+		if duration <= 0 {
+			return fmt.Errorf("database %s timeout must be positive", name)
+		}
+	}
+	if cfg.Mode == ModeProduction && strings.TrimSpace(cfg.Database.URL) == "" {
+		return errors.New("database URL is required in production")
 	}
 	return nil
 }
