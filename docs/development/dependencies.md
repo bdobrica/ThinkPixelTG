@@ -14,9 +14,15 @@ dependencies and must pass the complete verification gate.
 | Modules | Owner | Purpose and boundary |
 |---|---|---|
 | `github.com/prometheus/client_golang` | observability maintainers | Prometheus registry and exposition, confined to `internal/telemetry` and HTTP adapter wiring |
+| `github.com/oapi-codegen/runtime` | API maintainers | generated OpenAPI parameter binding support, confined to `internal/adapters/http/openapi` |
 | `go.opentelemetry.io/otel`, `otel/trace`, `otel/sdk` | observability maintainers | tracing API/SDK, confined to telemetry bootstrap and application-safe trace interfaces |
 | `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp` | observability maintainers | OTLP/HTTP export adapter, confined to `internal/telemetry` |
 | `go.opentelemetry.io/otel/exporters/stdout/stdouttrace` | observability maintainers | local-development trace sink, confined to `internal/telemetry` |
+
+Generated OpenAPI transport models and strict server interfaces are produced by
+the exactly pinned `oapi-codegen` tool into `internal/adapters/http/openapi/openapi.gen.go`.
+They are adapter types and are forbidden from domain/application imports by the
+architecture test.
 
 ## Required checks
 

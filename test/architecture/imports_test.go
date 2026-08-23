@@ -12,10 +12,13 @@ import (
 
 var forbiddenCoreImports = []string{
 	"/internal/adapters/",
+	"/internal/transport/",
 	"/api/",
 	"github.com/jackc/pgx",
 	"github.com/modelcontextprotocol/",
 }
+
+var forbiddenGeneratedMarkers = []string{"Code generated", "openapi.gen"}
 
 func TestCoreDoesNotImportAdaptersOrTransportTypes(t *testing.T) {
 	t.Parallel()
@@ -44,6 +47,15 @@ func TestCoreDoesNotImportAdaptersOrTransportTypes(t *testing.T) {
 					if strings.Contains(importPath, forbidden) {
 						t.Errorf("%s imports forbidden dependency %q", path, importPath)
 					}
+				}
+			}
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, marker := range forbiddenGeneratedMarkers {
+				if strings.Contains(string(contents), marker) {
+					t.Errorf("%s contains generated transport marker %q", path, marker)
 				}
 			}
 			return nil

@@ -30,9 +30,11 @@ tools:
 	$(GO) -C tools/golangci-lint mod download
 	$(GO) -C tools/govulncheck mod download
 	$(GO) -C tools/go-licenses mod download
+	$(GO) -C tools/oapi-codegen mod download
 	$(GO) -C tools/golangci-lint tool golangci-lint version
 	$(GO) -C tools/govulncheck tool govulncheck -version
 	$(GO) -C tools/go-licenses tool go-licenses --help >/dev/null 2>&1
+	$(GO) -C tools/oapi-codegen tool oapi-codegen -version
 
 generate:
 	$(GO) generate $(GO_PACKAGES)
