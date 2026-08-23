@@ -9,13 +9,23 @@ Build tools are isolated in `tools/go.mod` and pinned to exact module versions.
 Production code must never import that module. Updates are reviewed like runtime
 dependencies and must pass the complete verification gate.
 
+## Direct dependency register
+
+| Modules | Owner | Purpose and boundary |
+|---|---|---|
+| `github.com/prometheus/client_golang` | observability maintainers | Prometheus registry and exposition, confined to `internal/telemetry` and HTTP adapter wiring |
+| `go.opentelemetry.io/otel`, `otel/trace`, `otel/sdk` | observability maintainers | tracing API/SDK, confined to telemetry bootstrap and application-safe trace interfaces |
+| `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp` | observability maintainers | OTLP/HTTP export adapter, confined to `internal/telemetry` |
+| `go.opentelemetry.io/otel/exporters/stdout/stdouttrace` | observability maintainers | local-development trace sink, confined to `internal/telemetry` |
+
 ## Required checks
 
 - `go mod verify` authenticates downloaded production modules.
 - `go list -m -json all` is checked against the approved source hosts.
 - `go-licenses check` (excluding the unpublished main module) rejects
   unapproved or forbidden third-party dependency licenses.
-- `govulncheck ./...` performs call-graph-aware vulnerability scanning.
+- `cd tools && go tool govulncheck -C .. ./...` performs call-graph-aware
+  vulnerability scanning with the repository-pinned scanner.
 - committed `go.mod`, `go.sum`, `tools/go.mod`, and `tools/go.sum` changes are
   reviewed together with the code that needs them.
 

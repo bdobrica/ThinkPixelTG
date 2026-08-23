@@ -1,9 +1,15 @@
 version: 1
 allowed_module_sources:
+  - cel.dev
+  - cloud.google.com
   - github.com
   - go.opentelemetry.io
+  - go.uber.org
+  - go.yaml.in
   - golang.org
+  - gonum.org
   - google.golang.org
+  - gopkg.in
 licenses:
   allow:
     - Apache-2.0
