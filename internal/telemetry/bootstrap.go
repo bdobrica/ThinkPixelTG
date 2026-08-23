@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 type TraceMode string
@@ -91,7 +92,7 @@ func traceProvider(ctx context.Context, cfg BootstrapConfig) (trace.TracerProvid
 		cfg.TraceMode = TraceNoop
 	}
 	if cfg.TraceMode == TraceNoop {
-		provider := trace.NewNoopTracerProvider()
+		provider := noop.NewTracerProvider()
 		return provider, func(context.Context) error { return nil }, nil
 	}
 

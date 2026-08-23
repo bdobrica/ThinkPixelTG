@@ -5,7 +5,7 @@ named owner and purpose, a maintained upstream, a source allowed by
 `dependency-policy.yaml`, a compatible license, checksums in `go.sum`, and a
 security/reachability review. Provider SDKs remain behind ports and adapters.
 
-Build tools are isolated in `tools/go.mod` and pinned to exact module versions.
+Build tools are isolated in `tools/<tool>/go.mod` and pinned to exact module versions.
 Production code must never import that module. Updates are reviewed like runtime
 dependencies and must pass the complete verification gate.
 
@@ -24,9 +24,9 @@ dependencies and must pass the complete verification gate.
 - `go list -m -json all` is checked against the approved source hosts.
 - `go-licenses check` (excluding the unpublished main module) rejects
   unapproved or forbidden third-party dependency licenses.
-- `cd tools && go tool govulncheck -C .. ./...` performs call-graph-aware
+- `go -C tools/govulncheck tool govulncheck -C ../.. ./...` performs call-graph-aware
   vulnerability scanning with the repository-pinned scanner.
-- committed `go.mod`, `go.sum`, `tools/go.mod`, and `tools/go.sum` changes are
+- committed `go.mod`, `go.sum`, and `tools/<tool>/go.{mod,sum}` changes are
   reviewed together with the code that needs them.
 
 CI and `make dependency-check` run these checks. A critical or high reachable
