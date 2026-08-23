@@ -12,5 +12,8 @@ contract and `TODO.md` remains the chronological delivery ledger.
 - `security/` — threat models, data handling, and security reviews;
 - `operations/` — service levels, capacity, and runbooks.
 
+Phase completion records: [Phase 0](phase-0-evidence.md) and
+[Phase 1](phase-1-evidence.md).
+
 Normative documents use the terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY**
 as defined by RFC 2119 and RFC 8174.

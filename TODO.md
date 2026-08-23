@@ -62,7 +62,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] ENG-010 Add CI jobs for formatting/generation drift, lint/vet, unit/race/fuzz smoke tests, integration tests, security tests, OpenAPI/MCP conformance, dependency/license/vulnerability gates, build, and container smoke.
 - [x] ENG-011 Add baseline multi-stage static Go Dockerfile, `.dockerignore`, immutable/pinned build inputs, OCI labels/build metadata, non-root runtime, no shell requirement, and a hardened container smoke test.
 - [x] ENG-012 Add initial OpenAPI generation/lint/drift checking and ensure generated transport types do not leak into the domain/application model.
-- [ ] ENG-013 Verify a clean checkout passes `make verify`, the image runs non-root with read-only rootfs/capabilities dropped, SIGTERM drains cleanly, and record `docs/phase-1-evidence.md`.
+- [x] ENG-013 Verify a clean checkout passes `make verify`, the image runs non-root with read-only rootfs/capabilities dropped, SIGTERM drains cleanly, and record `docs/phase-1-evidence.md`.
 
 ---
 

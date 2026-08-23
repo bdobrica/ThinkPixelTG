@@ -12,7 +12,7 @@ It implements the tool-enforcement boundary described in [A Minimum Viable Platf
 
 ## Status
 
-**Phase 0 complete; Phase 1 engineering foundation is next.**
+**Phases 0 and 1 complete; Phase 2 authoritative persistence is next.**
 
 [PLAN.md](PLAN.md) is the implementation contract for the first release candidate. It defines the security model, domain model, APIs, connector framework, MCP compatibility layer, delivery phases, test strategy, and release gates.
 
@@ -21,6 +21,7 @@ The project documentation is now organized as follows:
 - [PLAN.md](PLAN.md) defines the target architecture and invariants;
 - [TODO.md](TODO.md) is the ordered implementation ledger;
 - [Phase 0 evidence](docs/phase-0-evidence.md) records completed governance gates;
+- [Phase 1 evidence](docs/phase-1-evidence.md) records the engineering-foundation gates;
 - [architecture documentation](docs/architecture/README.md), [security documentation](docs/security/README.md), and [contracts](docs/contracts/README.md) define the current normative baseline;
 - [architecture decision records](docs/adr/README.md) capture consequential decisions;
 - [OpenAPI](api/openapi.yaml) describes the canonical REST contract;
@@ -652,7 +653,9 @@ make verify
 
 `make verify` should become the aggregate non-runtime release gate and fail on generated-contract drift.
 
-Until implementation lands, these commands are planned interfaces rather than claims about the current repository state.
+These commands are implemented interfaces. `make verify` is the aggregate
+non-runtime gate; runtime/container checks remain explicit targets where a Docker
+daemon or external dependencies are required.
 
 ## Configuration and deployment
 
@@ -794,6 +797,7 @@ If those statements remain true when the harness, model, connector set, and MCP 
 
 - [Implementation plan](PLAN.md) and [delivery ledger](TODO.md)
 - [Phase 0 completion evidence](docs/phase-0-evidence.md)
+- [Phase 1 completion evidence](docs/phase-1-evidence.md)
 - [System context and trust boundaries](docs/architecture/system-context.md)
 - [Glossary and authoritative ownership](docs/architecture/glossary-and-ownership.md)
 - [Threat model](docs/security/threat-model.md), [data classification](docs/security/data-classification.md), and [Phase 0 authority review](docs/security/phase-0-authority-review.md)
