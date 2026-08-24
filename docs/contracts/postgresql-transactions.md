@@ -28,5 +28,9 @@ therefore becomes recoverable ambiguity under the retry contract.
 Use UTC `timestamptz`, application-generated UUIDv7, exact numeric usage quantities,
 statement/lock/idle-transaction timeouts, least-privilege roles, explicit column
 lists, and transaction retry only for operations proven replay safe. Migrations are
-forward-only and immutable after release. RLS remains a Phase 2 defense-in-depth
-decision; repository tenant scoping is mandatory regardless.
+forward-only and immutable after release. The release candidate uses
+repository-enforced tenant isolation with a fail-closed query guard and composite
+tenant keys. RLS is deferred until trusted identity can be propagated through
+transaction-local database context and cross-tenant workers have separate roles;
+see [ADR-0002](../adr/0002-postgresql-tenant-isolation.md). Repository tenant
+scoping remains mandatory if RLS is later enabled.

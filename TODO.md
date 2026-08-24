@@ -84,7 +84,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] DATA-014 Implement transactional mutation + audit + outbox helpers so no protected state change can commit without its required evidence/publication record.
 - [x] DATA-015 Implement a replay-safe outbox publisher with bounded retry, backoff/jitter, leases/claims, poison-message handling, dead-letter visibility, metrics, and crash-after-send tests.
 - [x] DATA-016 Test migrations from empty DB and prior fixtures, checksum/immutability rules, constraints/index access paths, forward recovery after failed migration, backup-friendly schema behavior, and compatibility rules.
-- [ ] DATA-017 Evaluate PostgreSQL RLS as defense in depth; implement it or record why repository enforcement is the RC posture, with adversarial tenant-isolation evidence either way.
+- [x] DATA-017 Evaluate PostgreSQL RLS as defense in depth; implement it or record why repository enforcement is the RC posture, with adversarial tenant-isolation evidence either way.
 - [ ] DATA-018 Run real-PostgreSQL concurrency/property tests proving tenant isolation, replay safety, conflict semantics, rollback, single attempt ownership, fencing, outbox atomicity, and record `docs/phase-2-evidence.md`.
 
 ---

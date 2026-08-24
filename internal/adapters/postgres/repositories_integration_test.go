@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -26,6 +27,7 @@ func TestRepositoriesIntegrationTenantIsolationAndRollback(t *testing.T) {
 		tenantB    = "019b0000-0000-7000-8000-000000000102"
 		connectorA = "019b0000-0000-7000-8000-000000000103"
 		rolledBack = "019b0000-0000-7000-8000-000000000104"
+		bindingID  = "019b0000-0000-7000-8000-000000000105"
 	)
 	for _, tenantID := range []string{tenantA, tenantB} {
 		if _, err := pool.Exec(ctx, `INSERT INTO tenants (tenant_id, created_at) VALUES ($1, now())`, tenantID); err != nil {
@@ -54,6 +56,55 @@ func TestRepositoriesIntegrationTenantIsolationAndRollback(t *testing.T) {
 	}
 	if _, err := repositoriesB.ConnectorInstances.Get(ctx, connectorA); !isNotFound(err) {
 		t.Fatalf("cross-tenant get error = %v, want not_found", err)
+	}
+
+	// A tenant cannot attach a child row to another tenant's parent, even when
+	// it guesses both identifiers. Composite tenant foreign keys reject it.
+	binding := CredentialBinding{
+		ID: bindingID, ConnectorInstanceID: connectorA, ProviderRef: "vault://tenant-b",
+		CapabilityMetadata: []byte(`{"scope":"repo"}`), Enabled: true, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := repositoriesB.CredentialBindings.Put(ctx, binding); err == nil {
+		t.Fatal("cross-tenant credential binding unexpectedly succeeded")
+	}
+
+	// Identical object identifiers in two tenants remain independent. This also
+	// exercises ON CONFLICT: it must never turn into a cross-tenant overwrite.
+	tenantBConfig := []byte(`{"organization":"other"}`)
+	connector.DestinationConfig = tenantBConfig
+	connector.ConfigDigest = bytes.Repeat([]byte{2}, 32)
+	if err := repositoriesB.ConnectorInstances.Put(ctx, connector); err != nil {
+		t.Fatalf("put same connector identifier for tenant B: %v", err)
+	}
+	binding.ProviderRef = "vault://tenant-b"
+	if err := repositoriesB.CredentialBindings.Put(ctx, binding); err != nil {
+		t.Fatalf("put tenant B credential binding: %v", err)
+	}
+	binding.ProviderRef = "vault://tenant-a"
+	if err := repositoriesA.CredentialBindings.Put(ctx, binding); err != nil {
+		t.Fatalf("put tenant A credential binding: %v", err)
+	}
+	gotA, err := repositoriesA.ConnectorInstances.Get(ctx, connectorA)
+	if err != nil {
+		t.Fatalf("get tenant A connector after tenant B write: %v", err)
+	}
+	gotB, err := repositoriesB.ConnectorInstances.Get(ctx, connectorA)
+	if err != nil {
+		t.Fatalf("get tenant B connector: %v", err)
+	}
+	if bytes.Equal(gotA.DestinationConfig, gotB.DestinationConfig) || !bytes.Equal(gotB.ConfigDigest, bytes.Repeat([]byte{2}, 32)) {
+		t.Fatalf("same-ID connector data crossed tenant boundary: A=%s B=%s", gotA.DestinationConfig, gotB.DestinationConfig)
+	}
+	bindingA, err := repositoriesA.CredentialBindings.Get(ctx, bindingID)
+	if err != nil {
+		t.Fatalf("get tenant A credential binding: %v", err)
+	}
+	bindingB, err := repositoriesB.CredentialBindings.Get(ctx, bindingID)
+	if err != nil {
+		t.Fatalf("get tenant B credential binding: %v", err)
+	}
+	if bindingA.ProviderRef != "vault://tenant-a" || bindingB.ProviderRef != "vault://tenant-b" {
+		t.Fatalf("same-ID credential binding crossed tenant boundary: A=%q B=%q", bindingA.ProviderRef, bindingB.ProviderRef)
 	}
 
 	transactor, err := NewTransactor(pool)

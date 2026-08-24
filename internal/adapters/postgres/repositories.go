@@ -41,7 +41,7 @@ func NewTenantRepositories(db DBTX, tenantID string) (*TenantRepositories, error
 	if err != nil {
 		return nil, fmt.Errorf("invalid repository tenant ID: %w", err)
 	}
-	base := tenantRepository{db: db, tenantID: id.String()}
+	base := tenantRepository{db: tenantScopedDB{DBTX: db, tenantID: id.String()}, tenantID: id.String()}
 	return &TenantRepositories{
 		ToolCatalog: ToolCatalogRepository{base}, ConnectorInstances: ConnectorInstanceRepository{base},
 		CredentialBindings: CredentialBindingRepository{base}, Invocations: InvocationRepository{base},
