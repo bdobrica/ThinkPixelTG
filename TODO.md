@@ -80,7 +80,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] DATA-010 Implement trusted resource projection from validated normalized arguments; reject missing/ambiguous projections required by the tool contract and test injection/edge cases.
 - [x] DATA-011 Implement the pure invocation state machine with actor permissions, legal/illegal transitions, optimistic versioning, terminal immutability, approval wait, ambiguity/manual-review semantics, and table/fuzz tests.
 - [x] DATA-012 Implement logical invocation acquisition/replay: one owner for a new `(tenant, run, tool_call_id)`, exact replay for matching tool/version/digest, deterministic conflict for mismatched replay, and bounded abandoned-owner recovery.
-- [ ] DATA-013 Implement invocation-attempt claiming with monotonic attempt numbers and fencing so concurrent/stale workers cannot both execute or finalize the same attempt.
+- [x] DATA-013 Implement invocation-attempt claiming with monotonic attempt numbers and fencing so concurrent/stale workers cannot both execute or finalize the same attempt.
 - [ ] DATA-014 Implement transactional mutation + audit + outbox helpers so no protected state change can commit without its required evidence/publication record.
 - [ ] DATA-015 Implement a replay-safe outbox publisher with bounded retry, backoff/jitter, leases/claims, poison-message handling, dead-letter visibility, metrics, and crash-after-send tests.
 - [ ] DATA-016 Test migrations from empty DB and prior fixtures, checksum/immutability rules, constraints/index access paths, forward recovery after failed migration, backup-friendly schema behavior, and compatibility rules.
