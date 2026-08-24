@@ -1,0 +1,8 @@
+[
+  {"name":"00001_catalog.sql","sha256":"780f22ac1933774fccfd82581f708c770d228b982501ff866f1900ed43d4ede6"},
+  {"name":"00002_invocations.sql","sha256":"301815a6d8c3a76dd44ed788ef0fdb68898b3fc24bb4c28ea16c1c0912fcd839"},
+  {"name":"00003_attempts.sql","sha256":"95f3c6543e61f41c3d16ccaa561f0f756b6d7597cf997108d54e8e5297008e1d"},
+  {"name":"00004_controls_results.sql","sha256":"cebadd4bfc465bd15df27d95743a1e6cea70185956bb8c294dc407d61d3f6edf"},
+  {"name":"00005_evidence_replay_outbox.sql","sha256":"035ea89426c31e71f2872450750702010b1e7148ea0d18ebfce62a966c382c45"},
+  {"name":"00006_invocation_acquisition.sql","sha256":"815b28ce175a7f7a83fa1d099b15bf73a2949f2295f106af4246ab89d6a22817"}
+]

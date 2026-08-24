@@ -87,5 +87,6 @@ compatible; production schema rollback is not supported.
 
 - [Phase 2 delivery plan](../../PLAN.md#phase-2--authoritative-persistence-and-invocation-primitives)
 - [PostgreSQL transaction contract](../contracts/postgresql-transactions.md)
+- [PostgreSQL migration and compatibility contract](../contracts/postgresql-migrations.md)
 - [PostgreSQL logical schema](../contracts/postgresql-schema.sql)
 - [Dependency policy](../development/dependencies.md)

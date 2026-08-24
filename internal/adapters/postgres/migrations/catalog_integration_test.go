@@ -25,6 +25,19 @@ func TestMigrationCatalogSchema(t *testing.T) {
 
 func migratedTestDatabase(t *testing.T) *sql.DB {
 	t.Helper()
+	db := emptyTestDatabase(t)
+	provider, err := NewProvider(db, Files())
+	if err != nil {
+		t.Fatalf("create migration provider: %v", err)
+	}
+	if err := Up(context.Background(), provider); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+	return db
+}
+
+func emptyTestDatabase(t *testing.T) *sql.DB {
+	t.Helper()
 	databaseURL := os.Getenv("TPTG_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("TPTG_TEST_DATABASE_URL is not set")
@@ -55,13 +68,6 @@ func migratedTestDatabase(t *testing.T) *sql.DB {
 	db := stdlib.OpenDB(*config)
 	t.Cleanup(func() { _ = db.Close() })
 
-	provider, err := NewProvider(db, Files())
-	if err != nil {
-		t.Fatalf("create migration provider: %v", err)
-	}
-	if err := Up(ctx, provider); err != nil {
-		t.Fatalf("apply migrations: %v", err)
-	}
 	return db
 }
 
