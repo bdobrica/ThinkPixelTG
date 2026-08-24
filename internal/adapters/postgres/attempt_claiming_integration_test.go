@@ -19,10 +19,8 @@ func TestAttemptClaimingConcurrencyAndFencingIntegration(t *testing.T) {
 	const invocationID = "019b0000-0000-7000-8000-000000000302"
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	digest := make([]byte, 32)
-	if _, err := pool.Exec(ctx, `INSERT INTO tenants VALUES ($1,$2);
-		INSERT INTO tools VALUES ('github.issue_create',$2);
-		INSERT INTO tool_versions VALUES ('github.issue_create','1','published','{}',$3,$2);
-		INSERT INTO invocations (tenant_id,invocation_id,run_id,tool_call_id,tool_id,tool_version,
+	seedAcquisitionCatalog(t, ctx, pool, tenantID, now, digest)
+	if _, err := pool.Exec(ctx, `INSERT INTO invocations (tenant_id,invocation_id,run_id,tool_call_id,tool_id,tool_version,
 		 argument_profile,argument_digest,resource_projection,resource_digest,retry_class,state,created_at,updated_at)
 		VALUES ($1,$4,'run-1','call-1','github.issue_create','1','jcs-v1',$3,'{}',$3,'safe','ready',$2,$2)`,
 		tenantID, now, digest, invocationID); err != nil {

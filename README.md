@@ -12,7 +12,7 @@ It implements the tool-enforcement boundary described in [A Minimum Viable Platf
 
 ## Status
 
-**Phases 0 and 1 complete; Phase 2 authoritative persistence is next.**
+**Phases 0–2 complete; Phase 3 identity and authorization enforcement is next.**
 
 [PLAN.md](PLAN.md) is the implementation contract for the first release candidate. It defines the security model, domain model, APIs, connector framework, MCP compatibility layer, delivery phases, test strategy, and release gates.
 
@@ -22,6 +22,7 @@ The project documentation is now organized as follows:
 - [TODO.md](TODO.md) is the ordered implementation ledger;
 - [Phase 0 evidence](docs/phase-0-evidence.md) records completed governance gates;
 - [Phase 1 evidence](docs/phase-1-evidence.md) records the engineering-foundation gates;
+- [Phase 2 evidence](docs/phase-2-evidence.md) records the authoritative-persistence gates;
 - [architecture documentation](docs/architecture/README.md), [security documentation](docs/security/README.md), and [contracts](docs/contracts/README.md) define the current normative baseline;
 - [architecture decision records](docs/adr/README.md) capture consequential decisions;
 - [OpenAPI](api/openapi.yaml) describes the canonical REST contract;
