@@ -33,6 +33,7 @@ func TestEmbeddedMigrationsAreAvailable(t *testing.T) {
 		"00003_attempts.sql",
 		"00004_controls_results.sql",
 		"00005_evidence_replay_outbox.sql",
+		"00006_invocation_acquisition.sql",
 	}
 	if len(entries) != len(want) {
 		t.Fatalf("embedded migration count = %d, want %d", len(entries), len(want))
