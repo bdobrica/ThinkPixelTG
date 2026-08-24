@@ -78,7 +78,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] DATA-008 Implement tenant-scoped repositories for tool catalog, connector instances, credential bindings, invocations, attempts, decisions, approvals, results, usage, audit, and outbox; test rollback and cross-tenant isolation.
 - [x] DATA-009 Implement canonical JSON normalization and digest library with deterministic fixtures, malformed-number rejection, Unicode/object-order cases, schema-aware boundary tests, property tests, and fuzz campaigns.
 - [x] DATA-010 Implement trusted resource projection from validated normalized arguments; reject missing/ambiguous projections required by the tool contract and test injection/edge cases.
-- [ ] DATA-011 Implement the pure invocation state machine with actor permissions, legal/illegal transitions, optimistic versioning, terminal immutability, approval wait, ambiguity/manual-review semantics, and table/fuzz tests.
+- [x] DATA-011 Implement the pure invocation state machine with actor permissions, legal/illegal transitions, optimistic versioning, terminal immutability, approval wait, ambiguity/manual-review semantics, and table/fuzz tests.
 - [ ] DATA-012 Implement logical invocation acquisition/replay: one owner for a new `(tenant, run, tool_call_id)`, exact replay for matching tool/version/digest, deterministic conflict for mismatched replay, and bounded abandoned-owner recovery.
 - [ ] DATA-013 Implement invocation-attempt claiming with monotonic attempt numbers and fencing so concurrent/stale workers cannot both execute or finalize the same attempt.
 - [ ] DATA-014 Implement transactional mutation + audit + outbox helpers so no protected state change can commit without its required evidence/publication record.
