@@ -16,7 +16,7 @@ export TMPDIR := $(PROJECT_TMP)
 
 .PHONY: prepare tools generate generate-check fmt fmt-check lint vet test test-race \
 	test-integration test-e2e test-security test-mcp-conformance openapi-check \
-	test-phase2 migration-test dependency-check license-check vuln-check build image container-smoke \
+	test-phase2 test-phase3 migration-test dependency-check license-check vuln-check build image container-smoke \
 	verify verify-phase0 compose-up compose-down compose-clean clean
 
 prepare:
@@ -24,7 +24,7 @@ prepare:
 
 tools generate fmt lint vet test test-race test-integration test-e2e \
 	test-security test-mcp-conformance openapi-check migration-test \
-	test-phase2 dependency-check license-check vuln-check build image: | prepare
+	test-phase2 test-phase3 dependency-check license-check vuln-check build image: | prepare
 
 tools:
 	$(GO) -C tools/golangci-lint mod download
@@ -69,6 +69,10 @@ test-phase2:
 		(echo "TPTG_TEST_DATABASE_URL is required for the Phase 2 evidence suite"; exit 1)
 	$(GO) test -tags=integration ./internal/adapters/postgres -count=1 \
 		-run 'Test(RepositoriesIntegrationTenantIsolationAndRollback|LogicalInvocationAcquisition(ReplayConflictAndRecovery|ConcurrencyProperties)Integration|AttemptClaimingConcurrencyAndFencingIntegration|ProtectedMutationIntegrationAtomicity|OutboxPublisherIntegration)'
+
+test-phase3:
+	$(GO) test ./internal/authn ./internal/adapters/thinkpixelag ./internal/app -count=1 \
+		-run 'Test(Authentication|Authorization)Adversarial'
 
 test-e2e:
 	$(GO) test -tags=e2e $(GO_PACKAGES) -run 'E2E'
@@ -121,7 +125,7 @@ verify-phase0: openapi-check
 	git diff HEAD --check
 	node scripts/validate-phase0.mjs
 
-verify: verify-phase0 fmt-check generate-check lint vet test test-race \
+verify: verify-phase0 fmt-check generate-check lint vet test test-race test-phase3 \
 	test-integration test-e2e test-security test-mcp-conformance migration-test \
 	dependency-check build
 

@@ -1,7 +1,9 @@
 package thinkpixelag
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -49,6 +51,57 @@ func TestAuthorizationClientRejectsMalformedAndMismatchedResponses(t *testing.T)
 			client, _ := NewAuthorizationClient(AuthorizationConfig{Endpoint: "https://ag.example/authorize", Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return response(body), nil })}, Timeout: time.Second})
 			if _, err := client.AuthorizeToolInvocation(t.Context(), adapterRequest()); err == nil {
 				t.Fatal("invalid response accepted")
+			}
+		})
+	}
+}
+
+func TestAuthorizationAdversarialMalformedResponsesFailClosed(t *testing.T) {
+	for name, body := range map[string]string{
+		"truncated JSON":         `{"decision_id":`,
+		"trailing JSON":          `{}` + `{}`,
+		"unknown outcome":        `{"outcome":"permit"}`,
+		"unknown reason":         `{"reason_codes":["invented"]}`,
+		"missing correlation":    `{"decision_id":"decision"}`,
+		"oversized unterminated": `{"decision_id":"` + strings.Repeat("a", 128),
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, err := NewAuthorizationClient(AuthorizationConfig{Endpoint: "https://ag.example/authorize",
+				Client:  &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return response(body), nil })},
+				Timeout: time.Second, MaxBodyBytes: 64})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := client.AuthorizeToolInvocation(t.Context(), adapterRequest()); err == nil {
+				t.Fatal("malformed AG response accepted")
+			}
+		})
+	}
+}
+
+func TestAuthorizationAdversarialTimeoutAndOutageFailClosed(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		transport roundTripFunc
+	}{
+		{name: "timeout", transport: func(request *http.Request) (*http.Response, error) {
+			<-request.Context().Done()
+			return nil, request.Context().Err()
+		}},
+		{name: "outage", transport: func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("connection refused")
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client, err := NewAuthorizationClient(AuthorizationConfig{Endpoint: "https://ag.example/authorize",
+				Client: &http.Client{Transport: test.transport}, Timeout: 5 * time.Millisecond})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			if _, err := client.AuthorizeToolInvocation(ctx, adapterRequest()); err == nil {
+				t.Fatal("AG transport failure produced a decision")
 			}
 		})
 	}

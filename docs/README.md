@@ -13,7 +13,8 @@ contract and `TODO.md` remains the chronological delivery ledger.
 - `operations/` — service levels, capacity, and runbooks.
 
 Phase completion records: [Phase 0](phase-0-evidence.md),
-[Phase 1](phase-1-evidence.md), and [Phase 2](phase-2-evidence.md).
+[Phase 1](phase-1-evidence.md), [Phase 2](phase-2-evidence.md), and
+[Phase 3](phase-3-evidence.md).
 
 Normative documents use the terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY**
 as defined by RFC 2119 and RFC 8174.
