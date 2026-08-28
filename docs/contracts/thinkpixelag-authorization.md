@@ -1,6 +1,14 @@
 # ThinkPixelAG authorization contract
 
-Status: Phase 0 normative baseline; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 application port implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+
+## Application boundary
+
+The application owns `ports.Authorizer`, `AuthorizationRequest`, and
+`AuthorizationDecision`. These strict types contain no HTTP or ThinkPixelAG
+client representation. Requests validate complete governed and operation context;
+decisions validate correlation, closed outcomes and reason codes, ordered validity
+times, revocation material, and typed constraints before application use.
 
 ## Request
 
