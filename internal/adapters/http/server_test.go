@@ -90,7 +90,24 @@ func TestPanicAndAuthenticationUseProblems(t *testing.T) {
 			t.Fatalf("response = %d %s", response.Code, response.Body.String())
 		}
 	})
+	t.Run("identity provider unavailable", func(t *testing.T) {
+		server := testServer(t, func(options *Options) {
+			options.Authenticator = func(context.Context, *stdhttp.Request) (context.Context, error) {
+				return nil, unavailable{}
+			}
+		})
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/v1/tools", nil))
+		if response.Code != 503 || !strings.Contains(response.Body.String(), "identity-provider-unavailable") {
+			t.Fatalf("response = %d %s", response.Code, response.Body.String())
+		}
+	})
 }
+
+type unavailable struct{}
+
+func (unavailable) Error() string   { return "unavailable" }
+func (unavailable) HTTPStatus() int { return stdhttp.StatusServiceUnavailable }
 
 func TestBodyLimitAndCancellation(t *testing.T) {
 	server := testServer(t, func(options *Options) {

@@ -1,6 +1,6 @@
 # OIDC token verification contract
 
-Status: AUTH-001 implemented 2026-08-28
+Status: AUTH-001 and AUTH-002 implemented 2026-08-28
 
 ThinkPixelTG accepts JWTs only from an explicit issuer profile. Each profile
 defines one or more TG audiences, optional OAuth resource indicators, an
@@ -34,5 +34,24 @@ uses stale fallback. Once the bound expires, verification returns the stable
 `invalid_token`, and unconfigured issuers return `unsupported_issuer`; public
 errors intentionally do not expose provider or cryptographic details.
 
-Bearer extraction, protected-route middleware, principal context construction,
-and rejection of forged identity headers belong to AUTH-002.
+## HTTP authentication and trusted principal
+
+AUTH-002 adds a strict HTTP adapter around verification. Protected requests must
+carry exactly one `Authorization: Bearer` field. Multiple/comma-joined values,
+other schemes, malformed credentials, invalid claims, and ambiguous claim aliases
+fail with a sanitized `401`. An IdP outage beyond the AUTH-001 cached-key bound
+fails closed with a sanitized `503`. Explicit exact-path exemptions are available
+only for intentionally public operational endpoints.
+
+The adapter derives a typed context principal from verified claims. `iss`, `sub`,
+and an unambiguous `tenant_id`/`tenant` are required. Optional `act`, `run`,
+`agent`, `agent_version`, `workload_id`, and `azp` claims remain distinct; an
+alias disagreement rejects the credential. Consumers use only the typed context
+accessor and never raw headers or request-body identity fields as authority.
+
+Caller-supplied `Forwarded`, `X-Forwarded-*`, and governance identity headers are
+rejected at this trust boundary. Top-level JSON identity hints may be retained for
+compatibility only when they exactly equal the authenticated principal; a conflict,
+malformed value, or hint for an absent trusted dimension is rejected. The body is
+restored byte-for-byte for downstream schema handling, and inbound bearer tokens
+are neither placed in the principal nor forwarded downstream.

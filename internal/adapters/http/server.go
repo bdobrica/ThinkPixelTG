@@ -225,7 +225,17 @@ func authentication(authenticate Authenticator, next stdhttp.Handler) stdhttp.Ha
 	return stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, request *stdhttp.Request) {
 		ctx, err := authenticate(request.Context(), request)
 		if err != nil {
-			WriteProblem(writer, request, Problem{Status: stdhttp.StatusUnauthorized, Type: "urn:thinkpixeltg:problem:unauthorized", Title: "Authentication required"})
+			status := stdhttp.StatusUnauthorized
+			var classified interface{ HTTPStatus() int }
+			if errors.As(err, &classified) && classified.HTTPStatus() == stdhttp.StatusServiceUnavailable {
+				status = stdhttp.StatusServiceUnavailable
+			}
+			problem := Problem{Status: status, Type: "urn:thinkpixeltg:problem:unauthorized", Title: "Authentication required"}
+			if status == stdhttp.StatusServiceUnavailable {
+				problem.Type = "urn:thinkpixeltg:problem:identity-provider-unavailable"
+				problem.Title = "Service unavailable"
+			}
+			WriteProblem(writer, request, problem)
 			return
 		}
 		next.ServeHTTP(writer, request.WithContext(ctx))
