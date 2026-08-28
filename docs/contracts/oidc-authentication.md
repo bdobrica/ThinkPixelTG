@@ -45,7 +45,7 @@ only for intentionally public operational endpoints.
 
 The adapter derives a typed context principal from verified claims. `iss`, `sub`,
 and an unambiguous `tenant_id`/`tenant` are required. Optional `act`, `run`,
-`agent`, `agent_version`, `workload_id`, and `azp` claims remain distinct; an
+`agent`, and `agent_version` claims remain distinct; an
 alias disagreement rejects the credential. Consumers use only the typed context
 accessor and never raw headers or request-body identity fields as authority.
 
@@ -69,3 +69,7 @@ are not inputs to governed-context derivation. They may contain application data
 or matching compatibility hints, but cannot create or replace authority. The
 governed type intentionally omits bearer credentials, raw claims, and workload
 identity; workload provenance is established independently by AUTH-004.
+
+Token `workload_id` and `azp` claims are ignored. They do not establish
+the independently authenticated workload identity described in
+[`workload-authentication.md`](workload-authentication.md).

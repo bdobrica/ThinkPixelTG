@@ -46,7 +46,7 @@ func TestHTTPAuthenticatorBuildsTypedPrincipalAndRestoresBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	principal, ok := PrincipalFromContext(ctx)
-	if !ok || principal.TenantID != "tenant-1" || principal.Subject != "subject-1" || principal.Actor != "actor-1" || principal.AgentID != "agent-1" || principal.AgentVersion != "v1" || principal.RunID != "run-1" || principal.WorkloadID != "spiffe://example/workload" {
+	if !ok || principal.TenantID != "tenant-1" || principal.Subject != "subject-1" || principal.Actor != "actor-1" || principal.AgentID != "agent-1" || principal.AgentVersion != "v1" || principal.RunID != "run-1" {
 		t.Fatalf("principal = %#v, present = %v", principal, ok)
 	}
 	restored, readErr := io.ReadAll(request.Body)
@@ -137,5 +137,28 @@ func TestNewHTTPAuthenticatorValidatesConfiguration(t *testing.T) {
 	verifier := verifierFunc(func(context.Context, string) (Claims, error) { return Claims{}, nil })
 	if _, err := NewHTTPAuthenticator(verifier, "relative"); err == nil {
 		t.Fatal("relative exemption error = nil")
+	}
+}
+
+func TestHTTPAuthenticatorAddsIndependentWorkloadIdentity(t *testing.T) {
+	source, _ := NewLocalWorkloadSource("local://tg/test")
+	authenticator, err := NewHTTPAuthenticatorWithWorkload(verifierFunc(func(context.Context, string) (Claims, error) {
+		return testClaims(), nil
+	}), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v1/tools", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	ctx, err := authenticator.Authenticate(request.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, ok := WorkloadIdentityFromContext(ctx)
+	if !ok || identity.ID != "local://tg/test" {
+		t.Fatalf("workload identity = %#v, present = %v", identity, ok)
+	}
+	if _, ok := PrincipalFromContext(ctx); !ok {
+		t.Fatal("caller principal missing")
 	}
 }

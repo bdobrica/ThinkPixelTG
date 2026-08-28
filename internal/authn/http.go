@@ -39,7 +39,6 @@ type Principal struct {
 	AgentID      string
 	AgentVersion string
 	RunID        string
-	WorkloadID   string
 }
 
 type principalContextKey struct{}
@@ -59,10 +58,15 @@ func PrincipalFromContext(ctx context.Context) (Principal, bool) {
 // endpoints which intentionally have no caller identity.
 type HTTPAuthenticator struct {
 	verifier TokenVerifier
+	workload WorkloadIdentitySource
 	exempt   map[string]struct{}
 }
 
 func NewHTTPAuthenticator(verifier TokenVerifier, exemptPaths ...string) (*HTTPAuthenticator, error) {
+	return NewHTTPAuthenticatorWithWorkload(verifier, nil, exemptPaths...)
+}
+
+func NewHTTPAuthenticatorWithWorkload(verifier TokenVerifier, workload WorkloadIdentitySource, exemptPaths ...string) (*HTTPAuthenticator, error) {
 	if verifier == nil {
 		return nil, errors.New("token verifier is required")
 	}
@@ -73,7 +77,7 @@ func NewHTTPAuthenticator(verifier TokenVerifier, exemptPaths ...string) (*HTTPA
 		}
 		exempt[path] = struct{}{}
 	}
-	return &HTTPAuthenticator{verifier: verifier, exempt: exempt}, nil
+	return &HTTPAuthenticator{verifier: verifier, workload: workload, exempt: exempt}, nil
 }
 
 // Authenticate implements the HTTP server's authentication hook.
@@ -106,7 +110,15 @@ func (authenticator *HTTPAuthenticator) Authenticate(ctx context.Context, reques
 	if err := checkBodyIdentityHints(request, principal); err != nil {
 		return ctx, newHTTPError(http.StatusUnauthorized, CodeInvalidToken)
 	}
-	return withPrincipal(ctx, principal), nil
+	ctx = withPrincipal(ctx, principal)
+	if authenticator.workload != nil {
+		identity, resolveErr := authenticator.workload.Resolve(ctx, request)
+		if resolveErr != nil || !validIdentityValue(identity.ID) || identity.Source == "" {
+			return request.Context(), newHTTPError(http.StatusUnauthorized, CodeInvalidToken)
+		}
+		ctx = withWorkloadIdentity(ctx, identity)
+	}
+	return ctx, nil
 }
 
 type HTTPError struct {
@@ -160,9 +172,6 @@ func principalFromClaims(claims Claims) (Principal, error) {
 		return Principal{}, err
 	}
 	if principal.AgentVersion, err = uniqueStringClaim(claims.Raw, "agent_version"); err != nil {
-		return Principal{}, err
-	}
-	if principal.WorkloadID, err = uniqueStringClaim(claims.Raw, "workload_id", "azp"); err != nil {
 		return Principal{}, err
 	}
 	if principal.Actor, err = actorClaim(claims.Raw["act"]); err != nil {
@@ -230,7 +239,7 @@ func checkBodyIdentityHints(request *http.Request, principal Principal) error {
 		"tenant_id": principal.TenantID, "principal_id": principal.Subject,
 		"subject": principal.Subject, "subject_id": principal.Subject, "actor_id": principal.Actor,
 		"agent_id": principal.AgentID, "agent_version": principal.AgentVersion,
-		"run_id": principal.RunID, "workload_id": principal.WorkloadID,
+		"run_id": principal.RunID,
 	}
 	for name, expected := range trusted {
 		raw, exists := envelope[name]
