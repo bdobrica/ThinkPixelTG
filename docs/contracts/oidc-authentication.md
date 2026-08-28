@@ -1,6 +1,6 @@
 # OIDC token verification contract
 
-Status: AUTH-001 and AUTH-002 implemented 2026-08-28
+Status: AUTH-001 through AUTH-003 implemented 2026-08-28
 
 ThinkPixelTG accepts JWTs only from an explicit issuer profile. Each profile
 defines one or more TG audiences, optional OAuth resource indicators, an
@@ -55,3 +55,17 @@ compatibility only when they exactly equal the authenticated principal; a confli
 malformed value, or hint for an absent trusted dimension is rejected. The body is
 restored byte-for-byte for downstream schema handling, and inbound bearer tokens
 are neither placed in the principal nor forwarded downstream.
+
+## Governed invocation context
+
+AUTH-003 introduces a second, stricter boundary for protected application
+operations. The governed context is derived exclusively from the private typed
+authenticated-principal context. It requires tenant, subject, agent, agent
+version, and run identity; actor identity remains optional delegation context.
+If any required dimension is absent or malformed, derivation fails closed.
+
+Request bodies, tool arguments, query parameters, and caller-controlled headers
+are not inputs to governed-context derivation. They may contain application data
+or matching compatibility hints, but cannot create or replace authority. The
+governed type intentionally omits bearer credentials, raw claims, and workload
+identity; workload provenance is established independently by AUTH-004.

@@ -93,7 +93,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 
 - [x] AUTH-001 Implement OIDC issuer discovery/JWKS retrieval with explicitly configured issuers, audiences/resources, algorithms, key-cache bounds, rotation, time validation, and deterministic outage behavior. (2026-08-28)
 - [x] AUTH-002 Implement bearer-token authentication middleware and typed authenticated-principal context; reject forged forwarding/governance headers and conflicting body/header identity hints. (2026-08-28)
-- [ ] AUTH-003 Define and implement governed context derivation for tenant, subject principal, agent/version, and run identity from authenticated/signed sources rather than ordinary invocation arguments.
+- [x] AUTH-003 Define and implement governed context derivation for tenant, subject principal, agent/version, and run identity from authenticated/signed sources rather than ordinary invocation arguments. (2026-08-28)
 - [ ] AUTH-004 Implement workload identity abstraction for the calling process/pod; support a local development identity and a production-oriented SPIFFE/mTLS or equivalent trusted workload source without making workload identity equal end-user/run authority.
 - [ ] AUTH-005 Add authentication adversarial tests for bad signature, issuer, audience/resource, algorithm, expiry/not-before, key rotation, missing governed claims, cross-tenant/run substitution, and forged proxy headers.
 - [ ] AUTH-006 Implement the `Authorizer` application port and strict typed authorization decision model independent of the ThinkPixelAG HTTP client types.
