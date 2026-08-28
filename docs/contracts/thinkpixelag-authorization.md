@@ -1,6 +1,6 @@
 # ThinkPixelAG authorization contract
 
-Status: AUTH-006 through AUTH-010 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 through AUTH-011 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
 
 ## Application boundary
 
@@ -88,6 +88,16 @@ valid, no older than the configured maximum decision age, and at least as curren
 as that revocation observation. Missing revocation state, AG failure, excessive
 decision age, or a stale epoch/checkpoint fails closed; there is no cached or
 degraded fallback for these writes.
+
+## Readiness and degradation
+
+Protected-write readiness requires both a successful authenticated AG dependency
+probe and a non-empty current revocation checkpoint for every configured
+tenant/policy scope. Any failed probe, missing scope, unavailable revocation
+state, or empty checkpoint reports `read_only_degraded` and makes the HTTP
+readiness callback fail. Liveness is independent. A deployment may continue an
+explicitly reviewed read-only path while degraded, but must not advertise or
+attempt protected-write readiness until mandatory freshness is restored.
 
 AG timeout, authentication failure, stale state, invalid/malformed data, cache
 poisoning suspicion, or unavailable required revocation freshness fails closed.
