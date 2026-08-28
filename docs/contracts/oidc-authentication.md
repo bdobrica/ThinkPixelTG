@@ -1,6 +1,6 @@
 # OIDC token verification contract
 
-Status: AUTH-001 through AUTH-003 implemented 2026-08-28
+Status: AUTH-001 through AUTH-005 implemented 2026-08-28
 
 ThinkPixelTG accepts JWTs only from an explicit issuer profile. Each profile
 defines one or more TG audiences, optional OAuth resource indicators, an
@@ -73,3 +73,17 @@ identity; workload provenance is established independently by AUTH-004.
 Token `workload_id` and `azp` claims are ignored. They do not establish
 the independently authenticated workload identity described in
 [`workload-authentication.md`](workload-authentication.md).
+
+## Adversarial verification evidence
+
+AUTH-005 exercises the complete authentication boundary with hostile inputs.
+Tests reject bad signatures, unconfigured issuers, wrong audiences and resource
+indicators, disallowed algorithms, expired and not-yet-valid credentials, unknown
+retired keys, and incomplete governed claims. Rotation tests prove a newly
+published signing key is retrieved and accepted.
+
+Separate substitution tests reject conflicting tenant and run claim aliases and
+top-level body hints. Proxy and governance-header tests cover `Forwarded`, common
+`X-Forwarded-*` variants including client-certificate forwarding, and tenant,
+run, and workload identity headers. These tests run without trusting invocation
+arguments or proxy-supplied workload material.
