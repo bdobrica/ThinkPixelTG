@@ -1,6 +1,6 @@
 # ThinkPixelAG authorization contract
 
-Status: AUTH-006 application port implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 through AUTH-007 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
 
 ## Application boundary
 
@@ -28,6 +28,14 @@ AG returns strict fields: `decision_id`, matching `request_id` and context diges
 `constraints`, `approval_requirement`, and evidence reference. Unknown outcome,
 missing required field, invalid time/order/signature, correlation mismatch,
 unrecognized constraint type, or contradictory response is malformed and denied.
+
+The production-oriented HTTP adapter requires an explicitly configured HTTPS
+endpoint and transport (including deployment mTLS), forbids redirects, applies
+the lesser of its configured timeout and requested deadline, bounds response
+size, requires the versioned media type, and strictly rejects unknown/trailing
+JSON. `X-Request-ID`, response `request_id`, and a locally calculated governed
+context digest provide transport and payload correlation. Adapter failures never
+produce an allow decision.
 
 Stable initial reason codes include `allowed`, `policy_denied`, `run_inactive`,
 `agent_version_denied`, `tool_denied`, `resource_denied`, `budget_exhausted`,
