@@ -1,6 +1,6 @@
 # ThinkPixelAG authorization contract
 
-Status: AUTH-006 through AUTH-009 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 through AUTH-010 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
 
 ## Application boundary
 
@@ -80,6 +80,14 @@ epoch or checkpoint mismatch invalidates the entry and forces a live decision;
 if the live decision cannot satisfy the observation, it fails closed. Unavailable
 required revocation state fails closed. Zero cache entries is an explicit
 live-only bypass mode.
+
+Configured high-risk write tuples (trusted `risk` plus `side_effect`) bypass the
+ordinary freshness/cache path and call AG live. TG first obtains the current
+revocation epoch/checkpoint, then requires the live decision to be currently
+valid, no older than the configured maximum decision age, and at least as current
+as that revocation observation. Missing revocation state, AG failure, excessive
+decision age, or a stale epoch/checkpoint fails closed; there is no cached or
+degraded fallback for these writes.
 
 AG timeout, authentication failure, stale state, invalid/malformed data, cache
 poisoning suspicion, or unavailable required revocation freshness fails closed.
