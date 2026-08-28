@@ -102,7 +102,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] AUTH-009 Implement decision freshness rules, bounded cache where justified, decision-key normalization/digesting, revocation epoch/checkpoint handling required by the AG contract, and safe cache bypass/failure behavior. (2026-08-28)
 - [x] AUTH-010 Require live/current authorization for configured high-risk writes and fail closed when the declared freshness contract cannot be met. (2026-08-28)
 - [x] AUTH-011 Integrate authorization into readiness/degradation semantics so the process does not advertise protected-write readiness when mandatory AG freshness cannot be established. (2026-08-28)
-- [ ] AUTH-012 Prove authorization executes before downstream credential resolution or connector execution; add spies/canaries that fail tests if an unauthorized call reaches either boundary.
+- [x] AUTH-012 Prove authorization executes before downstream credential resolution or connector execution; add spies/canaries that fail tests if an unauthorized call reaches either boundary. (2026-08-28)
 - [ ] AUTH-013 Run cross-tenant/run forgery, stale decision, malformed AG response, AG timeout/outage, revocation-freshness, cache-poisoning, and constraint-expansion tests; record `docs/phase-3-evidence.md`.
 
 ---

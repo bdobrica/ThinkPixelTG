@@ -1,6 +1,6 @@
 # ThinkPixelAG authorization contract
 
-Status: AUTH-006 through AUTH-011 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 through AUTH-012 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
 
 ## Application boundary
 
@@ -98,6 +98,17 @@ state, or empty checkpoint reports `read_only_degraded` and makes the HTTP
 readiness callback fail. Liveness is independent. A deployment may continue an
 explicitly reviewed read-only path while degraded, but must not advertise or
 attempt protected-write readiness until mandatory freshness is restored.
+
+## Enforcement order
+
+The application-owned protected-execution gate calls authorization first and
+requires a valid, correlated, explicit `allow` before invoking its credential
+resolver. Only a successfully returned opaque credential lease can reach the
+connector callback, and the lease is released after connector completion. An AG
+error, denial, malformed decision, or credential-resolution failure terminates
+the sequence before the next boundary. Spy/canary tests panic if an unauthorized
+path touches credential resolution or connector execution and assert the exact
+successful order: authorize, resolve, execute, release.
 
 AG timeout, authentication failure, stale state, invalid/malformed data, cache
 poisoning suspicion, or unavailable required revocation freshness fails closed.
