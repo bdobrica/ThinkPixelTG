@@ -39,7 +39,7 @@ type AuthorizationClient struct {
 func NewAuthorizationClient(config AuthorizationConfig) (*AuthorizationClient, error) {
 	endpoint, err := url.Parse(config.Endpoint)
 	if err != nil || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" ||
-		endpoint.Scheme != "https" && !(config.AllowInsecure && endpoint.Scheme == "http") {
+		endpoint.Scheme != "https" && (!config.AllowInsecure || endpoint.Scheme != "http") {
 		return nil, errors.New("ThinkPixelAG authorization endpoint is invalid")
 	}
 	if config.Client == nil || config.Timeout <= 0 {
@@ -72,6 +72,7 @@ type wireRequest struct {
 	ConnectorType       string      `json:"connector_type"`
 	RequestedDeadlineMS int64       `json:"requested_deadline_ms"`
 	PolicyProfile       string      `json:"policy_profile"`
+	PolicyVersion       string      `json:"policy_version"`
 }
 
 type wireContext struct {
@@ -138,7 +139,7 @@ func (client *AuthorizationClient) AuthorizeToolInvocation(ctx context.Context, 
 		ContextDigest: contextDigest, Tool: wireTool{input.ToolID, input.ToolVersion, input.Risk, input.SideEffect, input.ApprovalMode, input.RetryMode},
 		ArgumentProfile: input.ArgumentProfile, ArgumentDigest: input.ArgumentDigest.String(), ResourceDigest: input.ResourceDigest.String(),
 		Resources: input.Resources, Actions: input.Actions, Operation: input.Operation, ConnectorType: input.ConnectorType,
-		RequestedDeadlineMS: input.RequestedDeadline.Milliseconds(), PolicyProfile: input.PolicyProfile}
+		RequestedDeadlineMS: input.RequestedDeadline.Milliseconds(), PolicyProfile: input.PolicyProfile, PolicyVersion: input.PolicyVersion}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return ports.AuthorizationDecision{}, fmt.Errorf("encode authorization request: %w", err)
@@ -160,7 +161,7 @@ func (client *AuthorizationClient) AuthorizeToolInvocation(ctx context.Context, 
 	if err != nil {
 		return ports.AuthorizationDecision{}, fmt.Errorf("authorize with ThinkPixelAG: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return ports.AuthorizationDecision{}, fmt.Errorf("ThinkPixelAG authorization failed with status %d", response.StatusCode)
 	}

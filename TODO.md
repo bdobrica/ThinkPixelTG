@@ -99,7 +99,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 - [x] AUTH-006 Implement the `Authorizer` application port and strict typed authorization decision model independent of the ThinkPixelAG HTTP client types. (2026-08-28)
 - [x] AUTH-007 Implement the ThinkPixelAG authorization adapter with deadlines, typed request/response validation, stable reason codes, correlation IDs, and no policy duplication inside TG. (2026-08-28)
 - [x] AUTH-008 Enforce authorization constraints as narrowing only; prove TG cannot expand allowed repositories/resources/actions/argument bounds returned by AG. (2026-08-28)
-- [ ] AUTH-009 Implement decision freshness rules, bounded cache where justified, decision-key normalization/digesting, revocation epoch/checkpoint handling required by the AG contract, and safe cache bypass/failure behavior.
+- [x] AUTH-009 Implement decision freshness rules, bounded cache where justified, decision-key normalization/digesting, revocation epoch/checkpoint handling required by the AG contract, and safe cache bypass/failure behavior. (2026-08-28)
 - [ ] AUTH-010 Require live/current authorization for configured high-risk writes and fail closed when the declared freshness contract cannot be met.
 - [ ] AUTH-011 Integrate authorization into readiness/degradation semantics so the process does not advertise protected-write readiness when mandatory AG freshness cannot be established.
 - [ ] AUTH-012 Prove authorization executes before downstream credential resolution or connector execution; add spies/canaries that fail tests if an unauthorized call reaches either boundary.

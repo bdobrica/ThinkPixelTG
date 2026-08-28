@@ -1,6 +1,6 @@
 # ThinkPixelAG authorization contract
 
-Status: AUTH-006 through AUTH-008 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 through AUTH-009 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
 
 ## Application boundary
 
@@ -66,6 +66,20 @@ Reuse ends at the earliest of `expires_at`, configured TTL, run/policy/tool chan
 or observed revocation checkpoint. High-risk writes require the configured live or
 max-age check immediately before credential resolution. Clock skew is bounded and
 cannot extend validity. Denials may be cached only for a bounded safe interval.
+
+The freshness wrapper validates every live and cached decision against current
+UTC time and the complete original request. Its SHA-256 cache key is derived from
+the normalized typed request and covers governed identities, tool/policy version,
+operation, resource/action sets, digests, risk semantics, connector, and deadline.
+Entries expire at the earlier of decision expiry or the separately bounded
+allow/deny TTL. Capacity exhaustion bypasses insertion; it never produces an
+allow. Cached values are deep-copied and revalidated to resist mutation.
+
+Cache reuse requires a current revocation epoch/checkpoint observation. An older
+epoch or checkpoint mismatch invalidates the entry and forces a live decision;
+if the live decision cannot satisfy the observation, it fails closed. Unavailable
+required revocation state fails closed. Zero cache entries is an explicit
+live-only bypass mode.
 
 AG timeout, authentication failure, stale state, invalid/malformed data, cache
 poisoning suspicion, or unavailable required revocation freshness fails closed.

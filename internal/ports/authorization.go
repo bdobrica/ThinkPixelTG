@@ -47,6 +47,7 @@ type AuthorizationRequest struct {
 	Resources, Actions                                                            []string
 	RequestedDeadline                                                             time.Duration
 	PolicyProfile                                                                 string
+	PolicyVersion                                                                 string
 }
 
 type AuthorizationConstraints struct {
@@ -79,7 +80,7 @@ func (request AuthorizationRequest) Validate() error {
 	required := []string{request.RequestID, request.TenantID, request.Subject, request.AgentID,
 		request.AgentVersion, request.RunID, request.WorkloadID, request.ToolID, request.ToolVersion,
 		request.Risk, request.SideEffect, request.ApprovalMode, request.RetryMode,
-		request.ArgumentProfile, request.ConnectorType, request.Operation, request.PolicyProfile}
+		request.ArgumentProfile, request.ConnectorType, request.Operation, request.PolicyProfile, request.PolicyVersion}
 	for _, value := range required {
 		if !validAuthorizationText(value) {
 			return errors.New("authorization request has missing or invalid fields")
@@ -100,7 +101,7 @@ func (decision AuthorizationDecision) ValidateFor(request AuthorizationRequest) 
 	}
 	if !validAuthorizationText(decision.DecisionID) || decision.RequestID != request.RequestID ||
 		!validAuthorizationText(decision.ContextDigest) || !validAuthorizationText(decision.PolicyID) ||
-		!validAuthorizationText(decision.PolicyVersion) || !validAuthorizationText(decision.EvidenceRef) ||
+		decision.PolicyVersion != request.PolicyVersion || !validAuthorizationText(decision.EvidenceRef) ||
 		!validAuthorizationText(decision.RevocationCheckpoint) || decision.IssuedAt.IsZero() ||
 		decision.NotBefore.IsZero() || decision.ExpiresAt.IsZero() || decision.NotBefore.Before(decision.IssuedAt) ||
 		!decision.ExpiresAt.After(decision.NotBefore) {

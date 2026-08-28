@@ -9,7 +9,7 @@ func TestAuthorizationDecisionValidation(t *testing.T) {
 	now := time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC)
 	request := validAuthorizationRequest()
 	decision := AuthorizationDecision{DecisionID: "decision-1", RequestID: request.RequestID,
-		ContextDigest: "sha256:context", PolicyID: "policy", PolicyVersion: "7", Outcome: AuthorizationAllow,
+		ContextDigest: "sha256:context", PolicyID: "policy", PolicyVersion: request.PolicyVersion, Outcome: AuthorizationAllow,
 		Reasons: []AuthorizationReason{ReasonAllowed}, IssuedAt: now, NotBefore: now,
 		ExpiresAt: now.Add(time.Minute), RevocationCheckpoint: "checkpoint-3", EvidenceRef: "evidence-1"}
 	if err := decision.ValidateFor(request); err != nil {
@@ -46,5 +46,5 @@ func validAuthorizationRequest() AuthorizationRequest {
 		AgentVersion: "v1", RunID: "run-1", WorkloadID: "spiffe://example/tg", ToolID: "github.issue",
 		ToolVersion: "v1", Risk: "medium", SideEffect: "write", ApprovalMode: "policy", RetryMode: "idempotent",
 		ArgumentProfile: "jcs-v1", ConnectorType: "github", Operation: "create", Resources: []string{"repo:a"},
-		Actions: []string{"write"}, RequestedDeadline: time.Second, PolicyProfile: "default"}
+		Actions: []string{"write"}, RequestedDeadline: time.Second, PolicyProfile: "default", PolicyVersion: "1"}
 }

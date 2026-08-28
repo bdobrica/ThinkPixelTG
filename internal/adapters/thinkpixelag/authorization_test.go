@@ -68,5 +68,5 @@ func adapterRequest() ports.AuthorizationRequest {
 	return ports.AuthorizationRequest{RequestID: "request-1", TenantID: "tenant", Subject: "subject", AgentID: "agent", AgentVersion: "v1",
 		RunID: "run", WorkloadID: "workload", ToolID: "tool", ToolVersion: "v1", Risk: "low", SideEffect: "read",
 		ApprovalMode: "none", RetryMode: "safe", ArgumentProfile: "jcs-v1", Resources: []string{"repo:a"}, Actions: []string{"read"},
-		ConnectorType: "github", Operation: "get", RequestedDeadline: time.Second, PolicyProfile: "default"}
+		ConnectorType: "github", Operation: "get", RequestedDeadline: time.Second, PolicyProfile: "default", PolicyVersion: "1"}
 }
