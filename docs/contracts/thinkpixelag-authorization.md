@@ -1,6 +1,6 @@
 # ThinkPixelAG authorization contract
 
-Status: AUTH-006 through AUTH-007 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
+Status: AUTH-006 through AUTH-008 implemented 2026-08-28; media type/profile `tg.ag.authorization/v1alpha1`
 
 ## Application boundary
 
@@ -50,6 +50,14 @@ argument bounds, result size, deadline, or rate; it MUST NOT union, default-open
 ignore an unknown mandatory constraint, or substitute a broader resource. Empty
 intersection is denial. Constraint validation occurs before GR/credential use and
 again after any security-relevant transform.
+
+TG implements this as a pure intersection against an immutable local ceiling.
+Non-empty policy sets can only remove locally allowed repositories, resources,
+and actions; out-of-ceiling members are discarded and an empty intersection
+denies. Numeric and duration limits use the smaller positive bound. Policy
+argument limits for fields absent from the immutable tool envelope are rejected
+because TG cannot safely enforce an unknown constraint. Tests exhaustively prove
+representative numeric bounds never exceed either input.
 
 ## Freshness and revocation
 
