@@ -1,3 +1,5 @@
 /.tmp/
 /build/
 /deployments/compose/.env
+/AUDIT_SUMMARY.md
+/ALIGNMENT.md

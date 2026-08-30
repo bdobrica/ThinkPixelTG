@@ -4,6 +4,9 @@ This directory contains the durable architecture, security, contract, and
 operational decisions for ThinkPixelTG. `PLAN.md` remains the implementation
 contract and `TODO.md` remains the chronological delivery ledger.
 
+The repository's platform role and cross-component ownership boundary are
+summarized in [`ALIGNMENT.md`](../ALIGNMENT.md).
+
 ## Layout
 
 - `adr/` — consequential architecture decision records;
