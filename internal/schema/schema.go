@@ -112,6 +112,13 @@ func NewValidator(limits Limits) *Validator {
 	return &Validator{limits: limits, cache: make(map[[sha256.Size]byte]*list.Element), lru: list.New()}
 }
 
+// CompileSchema implements the publication-time domain boundary without
+// exposing the compiled schema implementation to callers.
+func (validator *Validator) CompileSchema(raw []byte) error {
+	_, err := validator.Compile(raw)
+	return err
+}
+
 func (validator *Validator) Compile(raw []byte) (*Compiled, error) {
 	if len(raw) > validator.limits.MaxSchemaBytes {
 		return nil, ErrSchemaTooLarge

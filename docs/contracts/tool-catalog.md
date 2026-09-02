@@ -35,6 +35,20 @@ Publication validates the complete record and atomically changes `draft` to
 constraints. Corrections require a new version; released migrations/records are
 not edited in place.
 
+Publication is fail closed. The transition MUST compile both bounded schemas and
+MUST reject a record unless the connector type, operation, instance selector,
+credential-binding selector, retry qualification reference, canonicalization
+profile, request/result/deadline/concurrency limits, and at least one required
+resource-projection field are valid. A reviewed description consists of bounded
+title and description text plus a non-empty administrative review reference;
+unreviewed downstream text is not publishable.
+
+The metering rule MUST declare an exact non-negative decimal quantity, dimension,
+charge point (`attempt`, `confirmed_side_effect`, `result`, `provider_unit`, or
+`tool_specific`), and deduplication scope (`logical_invocation`, `attempt`, or
+`provider_unit`). These fields describe immutable accounting semantics; they do
+not themselves emit or accept a usage event.
+
 ## Trusted metadata
 
 Risk (`read`, `bounded_write`, `consequential_write`, `privileged`), side-effect,

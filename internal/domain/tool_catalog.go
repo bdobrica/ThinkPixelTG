@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -10,10 +11,11 @@ import (
 )
 
 var (
-	toolIDPattern      = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$`)
-	semverCorePattern  = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-	semverIDPattern    = regexp.MustCompile(`^[0-9A-Za-z-]+$`)
-	registryKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+	toolIDPattern        = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$`)
+	semverCorePattern    = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+	semverIDPattern      = regexp.MustCompile(`^[0-9A-Za-z-]+$`)
+	registryKeyPattern   = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+	exactQuantityPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
 )
 
 type ToolID string
@@ -219,6 +221,43 @@ type ConnectorBinding struct {
 	InstanceSelector string
 }
 
+type ReviewedDescription struct {
+	Title       string
+	Description string
+	ReviewRef   string
+}
+
+type MeteringChargePoint string
+
+const (
+	MeterAtAttempt             MeteringChargePoint = "attempt"
+	MeterAtConfirmedSideEffect MeteringChargePoint = "confirmed_side_effect"
+	MeterAtResult              MeteringChargePoint = "result"
+	MeterAtProviderUnit        MeteringChargePoint = "provider_unit"
+	MeterAtToolSpecific        MeteringChargePoint = "tool_specific"
+)
+
+type MeteringDeduplicationScope string
+
+const (
+	MeterPerLogicalInvocation MeteringDeduplicationScope = "logical_invocation"
+	MeterPerAttempt           MeteringDeduplicationScope = "attempt"
+	MeterPerProviderUnit      MeteringDeduplicationScope = "provider_unit"
+)
+
+type MeteringRule struct {
+	Dimension          string
+	Units              string
+	ChargePoint        MeteringChargePoint
+	DeduplicationScope MeteringDeduplicationScope
+}
+
+// SchemaCompiler is the narrow publication-time boundary implemented by the
+// bounded JSON Schema service. It keeps schema-library types out of the domain.
+type SchemaCompiler interface {
+	CompileSchema([]byte) error
+}
+
 type ToolVersionDefinition struct {
 	ToolID             ToolID
 	Version            SemanticVersion
@@ -227,8 +266,15 @@ type ToolVersionDefinition struct {
 	Retry              RetryClass
 	Approval           ApprovalClass
 	OpenWorldResult    bool
+	Description        ReviewedDescription
+	InputSchema        []byte
+	OutputSchema       []byte
+	CanonicalProfile   string
 	Connector          ConnectorBinding
+	CredentialSelector string
+	RetryQualification string
 	ResourceProjection ResourceProjectionDefinition
+	Metering           MeteringRule
 	Limits             ToolLimits
 }
 
@@ -262,6 +308,76 @@ func ValidateToolVersionDefinition(definition ToolVersionDefinition) error {
 	}
 	if definition.Limits.RequestBytes < 1 || definition.Limits.RequestBytes > 1<<20 || definition.Limits.ResultBytes < 1 || definition.Limits.ResultBytes > 4<<20 || definition.Limits.Deadline <= 0 || definition.Limits.Deadline > 30*time.Second || definition.Limits.Concurrency < 1 || definition.Limits.Concurrency > 250 || definition.Limits.MaxAttempts < 1 || definition.Limits.MaxAttempts > 3 {
 		return errors.New("tool limits must be positive and within the platform capacity envelope")
+	}
+	return nil
+}
+
+// ValidateToolPublication validates the complete immutable record required at
+// the draft-to-published boundary. Draft construction deliberately permits
+// publication-only metadata to be assembled over time.
+func ValidateToolPublication(definition ToolVersionDefinition, compiler SchemaCompiler) error {
+	if err := ValidateToolVersionDefinition(definition); err != nil {
+		return err
+	}
+	if compiler == nil {
+		return errors.New("schema validator is required for publication")
+	}
+	if err := validateReviewedDescription(definition.Description); err != nil {
+		return err
+	}
+	if definition.CanonicalProfile != "jcs-v1" {
+		return errors.New("unsupported canonicalization profile")
+	}
+	if len(bytes.TrimSpace(definition.InputSchema)) == 0 || len(bytes.TrimSpace(definition.OutputSchema)) == 0 {
+		return errors.New("input and output schemas are required")
+	}
+	if err := compiler.CompileSchema(definition.InputSchema); err != nil {
+		return fmt.Errorf("input schema is not publishable: %w", err)
+	}
+	if err := compiler.CompileSchema(definition.OutputSchema); err != nil {
+		return fmt.Errorf("output schema is not publishable: %w", err)
+	}
+	if !validRegistryKey(definition.CredentialSelector) {
+		return errors.New("invalid credential-binding selector")
+	}
+	if !validReviewReference(definition.RetryQualification) {
+		return errors.New("retry semantics require a qualification reference")
+	}
+	requiredProjection := false
+	for _, field := range definition.ResourceProjection.Fields {
+		requiredProjection = requiredProjection || field.Required
+	}
+	if !requiredProjection {
+		return errors.New("resource projection requires at least one required field")
+	}
+	if err := validateMetering(definition.Metering); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateReviewedDescription(description ReviewedDescription) error {
+	if !validReviewedText(description.Title, 128) || !validReviewedText(description.Description, 4096) || !validReviewReference(description.ReviewRef) {
+		return errors.New("reviewed title, description, and review reference are required")
+	}
+	return nil
+}
+
+func validReviewedText(value string, maximum int) bool {
+	return value != "" && len(value) <= maximum && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r")
+}
+
+func validReviewReference(value string) bool {
+	return value != "" && len(value) <= 512 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r\n")
+}
+
+func validateMetering(rule MeteringRule) error {
+	if !validRegistryKey(rule.Dimension) || rule.Units == "" || len(rule.Units) > 64 ||
+		!exactQuantityPattern.MatchString(rule.Units) ||
+		(rule.ChargePoint != MeterAtAttempt && rule.ChargePoint != MeterAtConfirmedSideEffect && rule.ChargePoint != MeterAtResult &&
+			rule.ChargePoint != MeterAtProviderUnit && rule.ChargePoint != MeterAtToolSpecific) ||
+		(rule.DeduplicationScope != MeterPerLogicalInvocation && rule.DeduplicationScope != MeterPerAttempt && rule.DeduplicationScope != MeterPerProviderUnit) {
+		return errors.New("invalid metering semantics")
 	}
 	return nil
 }
@@ -350,9 +466,12 @@ func (version ToolVersion) Definition() ToolVersionDefinition {
 	return cloneToolDefinition(version.definition)
 }
 func (version ToolVersion) State() ToolVersionState { return version.state }
-func (version ToolVersion) Publish() (ToolVersion, error) {
+func (version ToolVersion) Publish(compiler SchemaCompiler) (ToolVersion, error) {
 	if version.state != ToolVersionDraft {
 		return ToolVersion{}, errors.New("only a draft tool version can be published")
+	}
+	if err := ValidateToolPublication(version.definition, compiler); err != nil {
+		return ToolVersion{}, err
 	}
 	version.state = ToolVersionPublished
 	return version, nil
@@ -379,6 +498,8 @@ func (exposure ToolExposure) SetEnabled(version ToolVersion, enabled bool) (Tool
 }
 
 func cloneToolDefinition(definition ToolVersionDefinition) ToolVersionDefinition {
+	definition.InputSchema = append([]byte(nil), definition.InputSchema...)
+	definition.OutputSchema = append([]byte(nil), definition.OutputSchema...)
 	definition.ResourceProjection.Fields = append([]ResourceProjectionField(nil), definition.ResourceProjection.Fields...)
 	for index := range definition.ResourceProjection.Fields {
 		definition.ResourceProjection.Fields[index].Literal = cloneJSONValue(definition.ResourceProjection.Fields[index].Literal)
