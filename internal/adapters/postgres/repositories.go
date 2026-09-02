@@ -219,6 +219,29 @@ func (r InvocationRepository) Get(ctx context.Context, id string) (Invocation, e
 	return v, repositoryError("get invocation", err)
 }
 
+// GetToolCallView returns only caller-visible fields. Tenant scope is bound by
+// the repository and run scope is mandatory in the SQL predicate.
+func (r InvocationRepository) GetToolCallView(ctx context.Context, runID, toolCallID string) (ports.ToolCallView, error) {
+	const query = `SELECT i.tool_call_id,i.tool_id,i.tool_version,i.state,
+		CASE WHEN i.state='succeeded' THEN er.safe_result ELSE NULL END,
+		i.terminal_code,i.created_at,i.updated_at
+		FROM invocations i LEFT JOIN execution_results er
+		ON er.tenant_id=i.tenant_id AND er.invocation_id=i.invocation_id
+		WHERE i.tenant_id=$1 AND i.run_id=$2 AND i.tool_call_id=$3`
+	var value ports.ToolCallView
+	var result []byte
+	err := r.db.QueryRow(ctx, query, r.tenantID, runID, toolCallID).Scan(&value.ToolCallID,
+		&value.ToolID, &value.ToolVersion, &value.State, &result, &value.ErrorCode,
+		&value.CreatedAt, &value.UpdatedAt)
+	if err != nil {
+		return ports.ToolCallView{}, repositoryError("get tool call", err)
+	}
+	if len(result) != 0 {
+		value.Result = append(json.RawMessage(nil), result...)
+	}
+	return value, nil
+}
+
 type Attempt struct {
 	InvocationID                                                                                                   string
 	AttemptNo                                                                                                      int

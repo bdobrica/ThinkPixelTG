@@ -42,6 +42,15 @@ returns the existing invocation; any tool-version or argument-digest mismatch is
 Connector content remains undisclosed in `post_tool` until output-schema and
 mandatory post-tool controls safely finalize it.
 
+`GET /v1/tool-calls/{tool_call_id}` resolves only within the authenticated tenant
+and run. Unknown, malformed, cross-run, and cross-tenant identifiers all return
+the same `404 tool_call_not_found` response. Its stable projection contains only
+the logical call identifier, exact tool/version, public state, safe terminal
+code, timestamps, and—only for `succeeded`—the finalized `safe_result`. Internal
+invocation IDs, resource projections and digests, authorization constraints,
+connector or credential identifiers, downstream references, and raw provider
+content are never returned.
+
 Errors use `application/problem+json` per RFC 9457 with stable `code` and opaque
 correlation ID. Details never include arguments, provider payloads, tokens, secret
 references, policy internals, or existence across tenant boundaries. `202` is an

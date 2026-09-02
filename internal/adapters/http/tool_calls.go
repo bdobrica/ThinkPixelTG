@@ -20,10 +20,15 @@ type ToolCallCreator interface {
 	Create(context.Context, app.ToolCallRequest) (app.ToolCallResult, error)
 }
 
+type ToolCallReader interface {
+	Get(context.Context, ports.InvocationIdentity, string) (ports.ToolCallView, error)
+}
+
 type InvocationIdentity func(context.Context) (ports.InvocationIdentity, error)
 
 type ToolCallOptions struct {
 	Service  ToolCallCreator
+	Reader   ToolCallReader
 	Identity InvocationIdentity
 }
 
@@ -34,14 +39,16 @@ func NewToolCallHandler(options ToolCallOptions) (http.Handler, error) {
 	if options.Identity == nil {
 		options.Identity = invocationIdentityFromAuthentication
 	}
-	handler := &toolCallHandler{service: options.Service, identity: options.Identity}
+	handler := &toolCallHandler{service: options.Service, reader: options.Reader, identity: options.Identity}
 	mux := http.NewServeMux()
 	mux.Handle("POST /v1/tool-calls", handler)
+	mux.Handle("GET /v1/tool-calls/{tool_call_id}", handler)
 	return mux, nil
 }
 
 type toolCallHandler struct {
 	service  ToolCallCreator
+	reader   ToolCallReader
 	identity InvocationIdentity
 }
 
@@ -52,6 +59,10 @@ type createToolCallDocument struct {
 }
 
 func (handler *toolCallHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if request.Method == http.MethodGet {
+		handler.get(writer, request)
+		return
+	}
 	mediaType, _, mediaErr := mime.ParseMediaType(request.Header.Get("Content-Type"))
 	if mediaErr != nil || mediaType != "application/json" {
 		writeToolCallProblem(writer, request, http.StatusUnsupportedMediaType, "invalid_arguments", "JSON content is required")
@@ -102,6 +113,40 @@ func (handler *toolCallHandler) ServeHTTP(writer http.ResponseWriter, request *h
 	}
 	response := map[string]any{"tool_call_id": result.Invocation.ToolCallID, "tool_id": result.Invocation.ToolID, "version": result.Invocation.ToolVersion, "state": result.State, "created_at": result.Invocation.CreatedAt, "updated_at": result.Invocation.UpdatedAt}
 	writeJSONContentType(writer, status, "application/json", response)
+}
+
+func (handler *toolCallHandler) get(writer http.ResponseWriter, request *http.Request) {
+	identity, err := handler.identity(request.Context())
+	if err != nil {
+		writeToolCallProblem(writer, request, http.StatusUnauthorized, "invalid_context", "Authentication context is invalid")
+		return
+	}
+	if handler.reader == nil {
+		writeToolCallProblem(writer, request, http.StatusServiceUnavailable, "internal", "Tool call is unavailable")
+		return
+	}
+	if request.URL.RawQuery != "" {
+		writeToolCallProblem(writer, request, http.StatusNotFound, "tool_call_not_found", "Tool call was not found")
+		return
+	}
+	view, err := handler.reader.Get(request.Context(), identity, request.PathValue("tool_call_id"))
+	if err != nil {
+		var classified *domain.Error
+		if errors.As(err, &classified) && classified.Code == domain.CodeNotFound {
+			writeToolCallProblem(writer, request, http.StatusNotFound, "tool_call_not_found", "Tool call was not found")
+			return
+		}
+		writeToolCallProblem(writer, request, http.StatusServiceUnavailable, "internal", "Tool call is unavailable")
+		return
+	}
+	response := map[string]any{"tool_call_id": view.ToolCallID, "tool_id": view.ToolID, "version": view.ToolVersion, "state": view.State, "created_at": view.CreatedAt, "updated_at": view.UpdatedAt}
+	if len(view.Result) != 0 {
+		response["result"] = json.RawMessage(view.Result)
+	}
+	if view.ErrorCode != nil {
+		response["error_code"] = *view.ErrorCode
+	}
+	writeJSONContentType(writer, http.StatusOK, "application/json", response)
 }
 
 func invocationIdentityFromAuthentication(ctx context.Context) (ports.InvocationIdentity, error) {

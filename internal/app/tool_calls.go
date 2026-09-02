@@ -27,6 +27,50 @@ type ToolCallResult struct {
 	Existing   bool
 }
 
+type ToolCallQueryService struct{ reader ports.ToolCallReader }
+
+func NewToolCallQueryService(reader ports.ToolCallReader) (*ToolCallQueryService, error) {
+	if reader == nil {
+		return nil, errors.New("tool-call reader is required")
+	}
+	return &ToolCallQueryService{reader: reader}, nil
+}
+
+func (service *ToolCallQueryService) Get(ctx context.Context, identity ports.InvocationIdentity, toolCallID string) (ports.ToolCallView, error) {
+	if service == nil || !validInvocationIdentity(identity) || !validToolCallID(toolCallID) {
+		return ports.ToolCallView{}, domain.NewError(domain.CodeNotFound, "tool call was not found", nil)
+	}
+	view, err := service.reader.GetToolCall(ctx, identity, toolCallID)
+	if err != nil {
+		var classified *domain.Error
+		if errors.As(err, &classified) && classified.Code == domain.CodeNotFound {
+			return ports.ToolCallView{}, domain.NewError(domain.CodeNotFound, "tool call was not found", err)
+		}
+		return ports.ToolCallView{}, err
+	}
+	if view.ToolCallID != toolCallID {
+		return ports.ToolCallView{}, domain.NewError(domain.CodeInternal, "tool-call reader returned a mismatched projection", nil)
+	}
+	if !publicInvocationState(view.State) {
+		return ports.ToolCallView{}, domain.NewError(domain.CodeInternal, "tool-call reader returned an invalid state", nil)
+	}
+	if view.State != "succeeded" {
+		view.Result = nil
+	} else if len(view.Result) != 0 && !json.Valid(view.Result) {
+		return ports.ToolCallView{}, domain.NewError(domain.CodeInternal, "tool-call reader returned an invalid safe result", nil)
+	}
+	return view, nil
+}
+
+func publicInvocationState(state string) bool {
+	switch state {
+	case "received", "validated", "authorized", "pre_tool_passed", "waiting_for_approval", "ready", "executing", "retry_wait", "reconciling", "ambiguous", "manual_review", "post_tool", "succeeded", "failed", "denied", "blocked", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
 type ToolCallService struct {
 	tools                        ports.InvocationToolResolver
 	ledger                       ports.InvocationLedger

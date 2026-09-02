@@ -135,11 +135,14 @@ paths:
         - $ref: '#/components/parameters/ToolCallId'
       responses:
         '200':
-          description: Safe invocation projection.
+          description: Stable invocation projection. Result is present only after successful post-tool finalization.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolCall'}
         '400': {$ref: '#/components/responses/Problem'}
+        '404':
+          $ref: '#/components/responses/Problem'
+          description: Unknown, malformed, cross-run, and cross-tenant identifiers use the same response.
         default: {$ref: '#/components/responses/Problem'}
   /v1/admin/tool-versions:
     post:
@@ -289,7 +292,8 @@ components:
         version: {type: string}
         state: {enum: [received, validated, authorized, pre_tool_passed, waiting_for_approval, ready, executing, retry_wait, reconciling, ambiguous, manual_review, post_tool, succeeded, failed, denied, blocked, cancelled]}
         approval_reference: {type: [string, 'null']}
-        result: {}
+        result:
+          description: Finalized safe result; raw connector/provider output is never returned.
         error_code: {type: [string, 'null']}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
@@ -324,5 +328,5 @@ components:
         detail: {type: string, maxLength: 1024}
         instance: {type: string, format: uri-reference}
         code:
-          enum: [unauthenticated, invalid_context, tool_not_found, invalid_arguments, replay_conflict, authorization_denied, approval_required, approval_invalid, guardrail_blocked, credential_unavailable, downstream_rejected, ambiguous_outcome, result_blocked, rate_limited, budget_exhausted, internal]
+          enum: [unauthenticated, invalid_context, tool_not_found, tool_call_not_found, invalid_arguments, replay_conflict, authorization_denied, approval_required, approval_invalid, guardrail_blocked, credential_unavailable, downstream_rejected, ambiguous_outcome, result_blocked, rate_limited, budget_exhausted, internal]
         correlation_id: {type: string}

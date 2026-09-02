@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bdobrica/ThinkPixelTG/internal/app"
+	"github.com/bdobrica/ThinkPixelTG/internal/domain"
 	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 )
 
@@ -33,6 +35,55 @@ func TestCreateToolCallStrictlyProjectsAuthenticatedRequest(t *testing.T) {
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusAccepted || res.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("response = %d %#v %s", res.Code, res.Header(), res.Body.String())
+	}
+}
+
+func TestGetToolCallReturnsOnlySafeProjection(t *testing.T) {
+	reader := toolCallQueryFunc(func(_ context.Context, identity ports.InvocationIdentity, id string) (ports.ToolCallView, error) {
+		if identity.TenantID != "trusted-tenant" || identity.RunID != "trusted-run" || id != "call-0001" {
+			t.Fatalf("lookup = %#v, %q", identity, id)
+		}
+		now := time.Unix(100, 0).UTC()
+		return ports.ToolCallView{ToolCallID: id, ToolID: "github.pull.comment", ToolVersion: "1.0.0", State: "succeeded", Result: json.RawMessage(`{"comment_id":"safe"}`), CreatedAt: now, UpdatedAt: now}, nil
+	})
+	handler, err := NewToolCallHandler(ToolCallOptions{Service: toolCallCreatorFunc(func(context.Context, app.ToolCallRequest) (app.ToolCallResult, error) {
+		return app.ToolCallResult{}, nil
+	}), Reader: reader, Identity: func(context.Context) (ports.InvocationIdentity, error) {
+		return ports.InvocationIdentity{TenantID: "trusted-tenant", RunID: "trusted-run"}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v1/tool-calls/call-0001", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("response = %d %#v %s", response.Code, response.Header(), response.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if _, leaked := body["invocation_id"]; leaked || len(body) != 7 {
+		t.Fatalf("body = %#v", body)
+	}
+}
+
+func TestGetToolCallIsEnumerationSafe(t *testing.T) {
+	reader := toolCallQueryFunc(func(context.Context, ports.InvocationIdentity, string) (ports.ToolCallView, error) {
+		return ports.ToolCallView{}, domain.NewError(domain.CodeNotFound, "scope mismatch details", nil)
+	})
+	handler, _ := NewToolCallHandler(ToolCallOptions{Service: toolCallCreatorFunc(func(context.Context, app.ToolCallRequest) (app.ToolCallResult, error) {
+		return app.ToolCallResult{}, nil
+	}), Reader: reader, Identity: func(context.Context) (ports.InvocationIdentity, error) {
+		return ports.InvocationIdentity{TenantID: "tenant", RunID: "run"}, nil
+	}})
+	for _, target := range []string{"/v1/tool-calls/missing-0001", "/v1/tool-calls/missing-0001?run_id=other"} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
+		if response.Code != http.StatusNotFound || strings.Contains(response.Body.String(), "scope mismatch") || !strings.Contains(response.Body.String(), `"code":"tool_call_not_found"`) {
+			t.Fatalf("response = %d %s", response.Code, response.Body.String())
+		}
 	}
 }
 
@@ -65,6 +116,12 @@ func TestCreateToolCallRejectsUntrustedShapeBeforeApplication(t *testing.T) {
 }
 
 type toolCallCreatorFunc func(context.Context, app.ToolCallRequest) (app.ToolCallResult, error)
+
+type toolCallQueryFunc func(context.Context, ports.InvocationIdentity, string) (ports.ToolCallView, error)
+
+func (function toolCallQueryFunc) Get(ctx context.Context, identity ports.InvocationIdentity, id string) (ports.ToolCallView, error) {
+	return function(ctx, identity, id)
+}
 
 func (f toolCallCreatorFunc) Create(ctx context.Context, r app.ToolCallRequest) (app.ToolCallResult, error) {
 	return f(ctx, r)

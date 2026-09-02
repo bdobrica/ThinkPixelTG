@@ -81,15 +81,17 @@ type Tool struct {
 
 // ToolCall defines model for ToolCall.
 type ToolCall struct {
-	ApprovalReference *string     `json:"approval_reference,omitempty"`
-	CreatedAt         time.Time   `json:"created_at"`
-	ErrorCode         *string     `json:"error_code,omitempty"`
-	Result            interface{} `json:"result,omitempty"`
-	State             interface{} `json:"state"`
-	ToolCallId        ToolCallId  `json:"tool_call_id"`
-	ToolId            string      `json:"tool_id"`
-	UpdatedAt         time.Time   `json:"updated_at"`
-	Version           string      `json:"version"`
+	ApprovalReference *string   `json:"approval_reference,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	ErrorCode         *string   `json:"error_code,omitempty"`
+
+	// Result Finalized safe result; raw connector/provider output is never returned.
+	Result     interface{} `json:"result,omitempty"`
+	State      interface{} `json:"state"`
+	ToolCallId ToolCallId  `json:"tool_call_id"`
+	ToolId     string      `json:"tool_id"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+	Version    string      `json:"version"`
 }
 
 // ToolCallId defines model for ToolCallId.
@@ -1001,6 +1003,20 @@ func (response GetToolCall400ApplicationProblemPlusJSONResponse) VisitGetToolCal
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetToolCall404ApplicationProblemPlusJSONResponse Problem
+
+func (response GetToolCall404ApplicationProblemPlusJSONResponse) VisitGetToolCallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }

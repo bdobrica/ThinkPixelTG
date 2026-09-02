@@ -51,6 +51,22 @@ type InvocationLedger interface {
 	RecordAuthorization(context.Context, InvocationIdentity, string, AuthorizationDecision, domain.Digest, domain.Digest, time.Time) error
 }
 
+// ToolCallView is the caller-safe projection of a logical invocation. Result
+// is populated only after post-tool controls have finalized a successful
+// invocation; it must never contain raw connector output.
+type ToolCallView struct {
+	ToolCallID, ToolID, ToolVersion, State string
+	Result                                 json.RawMessage
+	ErrorCode                              *string
+	CreatedAt, UpdatedAt                   time.Time
+}
+
+// ToolCallReader resolves within the trusted tenant and run identity. A miss
+// in any part of that scope must be indistinguishable from an unknown ID.
+type ToolCallReader interface {
+	GetToolCall(context.Context, InvocationIdentity, string) (ToolCallView, error)
+}
+
 type CredentialCapability interface{ Release() }
 
 type CredentialBroker interface {

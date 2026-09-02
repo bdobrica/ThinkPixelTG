@@ -63,6 +63,17 @@ func (ledger *InvocationLedger) RecordAuthorization(ctx context.Context, identit
 	return ledger.decisions.RecordAuthorization(ctx, AuthorizationDecision{InvocationID: invocationID, DecisionID: decision.DecisionID, ContextDigest: contextDigest[:], ArgumentDigest: argumentDigest[:], ResourceDigest: resourceDigest[:], Outcome: string(decision.Outcome), PolicyRef: decision.PolicyID + "@" + decision.PolicyVersion, Constraints: constraints, IssuedAt: decision.IssuedAt, ExpiresAt: decision.ExpiresAt, RecordedAt: at, RevocationCheckpoint: &checkpoint})
 }
 
+func (ledger *InvocationLedger) GetToolCall(ctx context.Context, identity ports.InvocationIdentity, toolCallID string) (ports.ToolCallView, error) {
+	if identity.TenantID != ledger.acquirer.tenantID || identity.RunID == "" {
+		return ports.ToolCallView{}, domain.NewError(domain.CodeNotFound, "tool call was not found", nil)
+	}
+	repositories, err := NewTenantRepositories(ledger.acquirer.db, identity.TenantID)
+	if err != nil {
+		return ports.ToolCallView{}, err
+	}
+	return repositories.Invocations.GetToolCallView(ctx, identity.RunID, toolCallID)
+}
+
 func portInvocation(value Invocation) ports.LogicalInvocation {
 	var argument, resource domain.Digest
 	copy(argument[:], value.ArgumentDigest)
