@@ -36,7 +36,7 @@ func TestToolCallQueryMakesMalformedAndMissingIDsEquivalent(t *testing.T) {
 	for _, id := range []string{"bad", "missing-0001"} {
 		_, err := service.Get(context.Background(), queryIdentity(), id)
 		var classified *domain.Error
-		if !errors.As(err, &classified) || classified.Code != domain.CodeNotFound || classified.Message != "tool call was not found" {
+		if !errors.As(err, &classified) || classified.Code != domain.CodeToolCallNotFound || classified.Message != "tool call was not found" {
 			t.Fatalf("Get(%q) error = %v", id, err)
 		}
 	}

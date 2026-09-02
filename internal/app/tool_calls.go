@@ -38,13 +38,13 @@ func NewToolCallQueryService(reader ports.ToolCallReader) (*ToolCallQueryService
 
 func (service *ToolCallQueryService) Get(ctx context.Context, identity ports.InvocationIdentity, toolCallID string) (ports.ToolCallView, error) {
 	if service == nil || !validInvocationIdentity(identity) || !validToolCallID(toolCallID) {
-		return ports.ToolCallView{}, domain.NewError(domain.CodeNotFound, "tool call was not found", nil)
+		return ports.ToolCallView{}, domain.NewError(domain.CodeToolCallNotFound, "tool call was not found", nil)
 	}
 	view, err := service.reader.GetToolCall(ctx, identity, toolCallID)
 	if err != nil {
 		var classified *domain.Error
 		if errors.As(err, &classified) && classified.Code == domain.CodeNotFound {
-			return ports.ToolCallView{}, domain.NewError(domain.CodeNotFound, "tool call was not found", err)
+			return ports.ToolCallView{}, domain.NewError(domain.CodeToolCallNotFound, "tool call was not found", err)
 		}
 		return ports.ToolCallView{}, err
 	}
@@ -92,17 +92,17 @@ func NewToolCallService(tools ports.InvocationToolResolver, ledger ports.Invocat
 
 func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequest) (ToolCallResult, error) {
 	if service == nil || request.ToolCallID == "" || !validInvocationIdentity(request.Identity) {
-		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArgument, "tool-call context is invalid", nil)
+		return ToolCallResult{}, domain.NewError(domain.CodeInvalidContext, "tool-call context is invalid", nil)
 	}
 	if !validToolCallID(request.ToolCallID) {
-		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArgument, "idempotency key is invalid", nil)
+		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArguments, "idempotency key is invalid", nil)
 	}
 	if _, err := domain.ParseToolID(request.ToolID); err != nil {
-		return ToolCallResult{}, domain.NewError(domain.CodeNotFound, "tool version is not available", nil)
+		return ToolCallResult{}, domain.NewError(domain.CodeToolNotFound, "tool version is not available", nil)
 	}
 	if request.Version != "" {
 		if _, err := domain.ParseSemanticVersion(request.Version); err != nil {
-			return ToolCallResult{}, domain.NewError(domain.CodeNotFound, "tool version is not available", nil)
+			return ToolCallResult{}, domain.NewError(domain.CodeToolNotFound, "tool version is not available", nil)
 		}
 	}
 	resolved, err := service.tools.ResolveInvocationTool(ctx, request.Identity, request.ToolID, request.Version)
@@ -125,11 +125,11 @@ func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequ
 		return compiled.ValidateJSON(raw)
 	})
 	if err != nil {
-		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArgument, "arguments are invalid", err)
+		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArguments, "arguments are invalid", err)
 	}
 	projection, err := resourceprojection.Project(normalized, projectionDefinition(tool.ResourceProjection))
 	if err != nil {
-		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArgument, "resource projection failed", err)
+		return ToolCallResult{}, domain.NewError(domain.CodeInvalidArguments, "resource projection failed", err)
 	}
 	now := domain.UTCNow(service.clock)
 	invocationID, err := service.newID()
@@ -142,7 +142,7 @@ func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequ
 		return ToolCallResult{}, err
 	}
 	if acquired.Kind == ports.InvocationConflict {
-		return ToolCallResult{}, domain.NewError(domain.CodeConflict, "logical invocation does not match its original request", nil)
+		return ToolCallResult{}, domain.NewError(domain.CodeReplayConflict, "logical invocation does not match its original request", nil)
 	}
 	if acquired.Kind != ports.InvocationOwned {
 		return ToolCallResult{Invocation: acquired.Invocation, State: acquired.Invocation.State, Existing: true}, nil
@@ -153,27 +153,27 @@ func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequ
 	authRequest := authorizationRequest(request.Identity, invocation, tool, projection.Value, service.policyProfile, service.policyVersion)
 	decision, err := service.authorizer.AuthorizeToolInvocation(ctx, authRequest)
 	if err != nil {
-		return ToolCallResult{}, domain.NewError(domain.CodeUnavailable, "authorization could not be established", err)
+		return ToolCallResult{}, domain.NewError(domain.CodeServiceUnavailable, "authorization could not be established", err)
 	}
 	if err := decision.ValidateFor(authRequest); err != nil {
-		return ToolCallResult{}, domain.NewError(domain.CodeForbidden, "authorization decision is invalid", err)
+		return ToolCallResult{}, domain.NewError(domain.CodeAuthorizationDenied, "authorization decision is invalid", err)
 	}
 	if err := service.ledger.RecordAuthorization(ctx, request.Identity, invocation.ID, decision, normalized.Digest, projection.Digest, now); err != nil {
 		return ToolCallResult{}, err
 	}
 	if decision.Outcome != ports.AuthorizationAllow {
-		return ToolCallResult{}, domain.NewError(domain.CodeForbidden, "tool invocation is not authorized", nil)
+		return ToolCallResult{}, domain.NewError(domain.CodeAuthorizationDenied, "tool invocation is not authorized", nil)
 	}
 	narrowed, err := NarrowAuthorizationConstraints(decision, ConstraintCeiling{Resources: authRequest.Resources, Actions: authRequest.Actions, ArgumentMax: map[string]int64{}, MaxResultBytes: tool.Limits.ResultBytes, MaxDuration: tool.Limits.Deadline})
 	if err != nil {
-		return ToolCallResult{}, domain.NewError(domain.CodeForbidden, "authorization constraints cannot be enforced", err)
+		return ToolCallResult{}, domain.NewError(domain.CodeAuthorizationDenied, "authorization constraints cannot be enforced", err)
 	}
 	decision.Constraints = narrowed
 	executionCtx, cancel := context.WithTimeout(ctx, narrowed.MaxDuration)
 	defer cancel()
 	lease, err := service.credentials.Resolve(executionCtx, request.Identity, tool, decision)
 	if err != nil {
-		return ToolCallResult{}, err
+		return ToolCallResult{}, domain.NewError(domain.CodeCredentialUnavailable, "credential could not be resolved", err)
 	}
 	if lease == nil {
 		return ToolCallResult{}, domain.NewError(domain.CodeInternal, "credential broker returned no capability", nil)
@@ -181,7 +181,7 @@ func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequ
 	defer lease.Release()
 	output, err := service.connector.Execute(executionCtx, ports.ConnectorRequest{InvocationID: invocation.ID, Tool: tool, CanonicalArguments: append([]byte(nil), normalized.Canonical...), ResourceProjection: append([]byte(nil), projection.Canonical...), Decision: decision, Credential: lease})
 	if err != nil {
-		return ToolCallResult{}, err
+		return ToolCallResult{}, domain.NewError(domain.CodeConnectorError, "connector execution failed", err)
 	}
 	state, ok := connectorState(output.Classification)
 	if !ok {

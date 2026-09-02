@@ -70,7 +70,7 @@ func New(options Options) (*Server, error) {
 	})
 	mux.HandleFunc("GET /readyz", func(writer stdhttp.ResponseWriter, request *stdhttp.Request) {
 		if err := options.Readiness(request.Context()); err != nil {
-			WriteProblem(writer, request, Problem{Status: stdhttp.StatusServiceUnavailable, Type: "urn:thinkpixeltg:problem:not-ready", Title: "Service unavailable", Detail: "a required dependency is not ready"})
+			writePublicProblem(writer, request, domain.CodeNotReady)
 			return
 		}
 		writeJSON(writer, stdhttp.StatusOK, map[string]string{"status": "ready"})
@@ -135,7 +135,7 @@ func recoverPanics(logger *slog.Logger, next stdhttp.Handler) stdhttp.Handler {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				_ = telemetry.LogEvent(request.Context(), logger, slog.LevelError, "http.panic_recovered", slog.String("panic.type", fmt.Sprintf("%T", recovered)))
-				WriteProblem(writer, request, Problem{Status: stdhttp.StatusInternalServerError, Type: "urn:thinkpixeltg:problem:internal", Title: "Internal server error"})
+				writePublicProblem(writer, request, domain.CodeInternal)
 			}
 		}()
 		next.ServeHTTP(writer, request)
@@ -148,7 +148,7 @@ func requestID(generate IDGenerator, next stdhttp.Handler) stdhttp.Handler {
 		if parsed, err := domain.ParseUUID(id); err != nil || parsed[6]>>4 != 7 {
 			generated, generateErr := generate()
 			if generateErr != nil {
-				WriteProblem(writer, request, Problem{Status: 500, Type: "urn:thinkpixeltg:problem:internal", Title: "Internal server error"})
+				writePublicProblem(writer, request, domain.CodeInternal)
 				return
 			}
 			id = generated.String()
@@ -230,12 +230,11 @@ func authentication(authenticate Authenticator, next stdhttp.Handler) stdhttp.Ha
 			if errors.As(err, &classified) && classified.HTTPStatus() == stdhttp.StatusServiceUnavailable {
 				status = stdhttp.StatusServiceUnavailable
 			}
-			problem := Problem{Status: status, Type: "urn:thinkpixeltg:problem:unauthorized", Title: "Authentication required"}
+			code := domain.CodeUnauthenticated
 			if status == stdhttp.StatusServiceUnavailable {
-				problem.Type = "urn:thinkpixeltg:problem:identity-provider-unavailable"
-				problem.Title = "Service unavailable"
+				code = domain.CodeIdentityProviderUnavailable
 			}
-			WriteProblem(writer, request, problem)
+			writePublicProblem(writer, request, code)
 			return
 		}
 		next.ServeHTTP(writer, request.WithContext(ctx))
@@ -243,15 +242,23 @@ func authentication(authenticate Authenticator, next stdhttp.Handler) stdhttp.Ha
 }
 
 type Problem struct {
-	Type     string `json:"type"`
-	Title    string `json:"title"`
-	Status   int    `json:"status"`
-	Detail   string `json:"detail,omitempty"`
-	Instance string `json:"instance,omitempty"`
+	Type          string `json:"type"`
+	Title         string `json:"title"`
+	Status        int    `json:"status"`
+	Detail        string `json:"detail,omitempty"`
+	Instance      string `json:"instance,omitempty"`
+	Code          string `json:"code"`
+	CorrelationID string `json:"correlation_id"`
 }
 
 func WriteProblem(writer stdhttp.ResponseWriter, request *stdhttp.Request, problem Problem) {
-	problem.Instance = request.URL.Path
+	if problem.Code == "" {
+		problem.Code = string(domain.CodeInternal)
+	}
+	if problem.Instance == "" {
+		problem.Instance = request.URL.Path
+	}
+	problem.CorrelationID = writer.Header().Get(RequestIDHeader)
 	writer.Header().Set("Content-Type", "application/problem+json")
 	writer.Header().Set("Cache-Control", "no-store")
 	writer.WriteHeader(problem.Status)

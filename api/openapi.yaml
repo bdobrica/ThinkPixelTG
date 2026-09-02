@@ -328,5 +328,5 @@ components:
         detail: {type: string, maxLength: 1024}
         instance: {type: string, format: uri-reference}
         code:
-          enum: [unauthenticated, invalid_context, tool_not_found, tool_call_not_found, invalid_arguments, replay_conflict, authorization_denied, approval_required, approval_invalid, guardrail_blocked, credential_unavailable, downstream_rejected, ambiguous_outcome, result_blocked, rate_limited, budget_exhausted, internal]
+          enum: [unauthenticated, identity_provider_unavailable, invalid_context, tool_not_found, tool_call_not_found, invalid_arguments, replay_conflict, authorization_denied, approval_required, approval_invalid, guardrail_blocked, credential_unavailable, connector_error, downstream_rejected, ambiguous_outcome, result_blocked, rate_limited, budget_exhausted, service_unavailable, not_ready, internal]
         correlation_id: {type: string}

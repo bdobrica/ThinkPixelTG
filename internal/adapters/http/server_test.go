@@ -98,7 +98,7 @@ func TestPanicAndAuthenticationUseProblems(t *testing.T) {
 		})
 		response := httptest.NewRecorder()
 		server.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/v1/tools", nil))
-		if response.Code != 503 || !strings.Contains(response.Body.String(), "identity-provider-unavailable") {
+		if response.Code != 503 || !strings.Contains(response.Body.String(), `"code":"identity_provider_unavailable"`) {
 			t.Fatalf("response = %d %s", response.Code, response.Body.String())
 		}
 	})

@@ -122,7 +122,7 @@ func (handler *toolCallHandler) get(writer http.ResponseWriter, request *http.Re
 		return
 	}
 	if handler.reader == nil {
-		writeToolCallProblem(writer, request, http.StatusServiceUnavailable, "internal", "Tool call is unavailable")
+		writeToolCallProblem(writer, request, http.StatusServiceUnavailable, "service_unavailable", "Tool call is unavailable")
 		return
 	}
 	if request.URL.RawQuery != "" {
@@ -132,11 +132,11 @@ func (handler *toolCallHandler) get(writer http.ResponseWriter, request *http.Re
 	view, err := handler.reader.Get(request.Context(), identity, request.PathValue("tool_call_id"))
 	if err != nil {
 		var classified *domain.Error
-		if errors.As(err, &classified) && classified.Code == domain.CodeNotFound {
+		if errors.As(err, &classified) && (classified.Code == domain.CodeNotFound || classified.Code == domain.CodeToolCallNotFound) {
 			writeToolCallProblem(writer, request, http.StatusNotFound, "tool_call_not_found", "Tool call was not found")
 			return
 		}
-		writeToolCallProblem(writer, request, http.StatusServiceUnavailable, "internal", "Tool call is unavailable")
+		writeToolCallProblem(writer, request, http.StatusServiceUnavailable, "service_unavailable", "Tool call is unavailable")
 		return
 	}
 	response := map[string]any{"tool_call_id": view.ToolCallID, "tool_id": view.ToolID, "version": view.ToolVersion, "state": view.State, "created_at": view.CreatedAt, "updated_at": view.UpdatedAt}
@@ -162,23 +162,9 @@ func invocationIdentityFromAuthentication(ctx context.Context) (ports.Invocation
 }
 
 func writeToolCallError(writer http.ResponseWriter, request *http.Request, err error) {
-	status, code, title := http.StatusServiceUnavailable, "internal", "Tool call is unavailable"
-	var classified *domain.Error
-	if errors.As(err, &classified) {
-		switch classified.Code {
-		case domain.CodeInvalidArgument:
-			status, code, title = http.StatusBadRequest, "invalid_arguments", "Tool-call arguments are invalid"
-		case domain.CodeNotFound:
-			status, code, title = http.StatusNotFound, "tool_not_found", "Tool version is not available"
-		case domain.CodeConflict:
-			status, code, title = http.StatusConflict, "replay_conflict", "Idempotency key conflicts with an existing tool call"
-		case domain.CodeForbidden:
-			status, code, title = http.StatusForbidden, "authorization_denied", "Tool call is not authorized"
-		}
-	}
-	writeToolCallProblem(writer, request, status, code, title)
+	writeDomainProblem(writer, request, err, domain.CodeServiceUnavailable)
 }
 
-func writeToolCallProblem(writer http.ResponseWriter, request *http.Request, status int, code, title string) {
-	writeJSONContentType(writer, status, "application/problem+json", map[string]any{"type": "urn:thinkpixeltg:problem:" + code, "title": title, "status": status, "code": code, "correlation_id": writer.Header().Get(RequestIDHeader), "instance": "/v1/tool-calls"})
+func writeToolCallProblem(writer http.ResponseWriter, request *http.Request, _ int, code, _ string) {
+	writePublicProblem(writer, request, domain.ErrorCode(code))
 }

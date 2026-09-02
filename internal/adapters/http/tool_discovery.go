@@ -156,7 +156,7 @@ func (handler *toolDiscoveryHandler) describe(writer http.ResponseWriter, reques
 	candidate, err := handler.discovery.Describe(request.Context(), identity, toolID, version)
 	if err != nil {
 		var domainErr *domain.Error
-		if errors.As(err, &domainErr) && domainErr.Code == domain.CodeNotFound {
+		if errors.As(err, &domainErr) && (domainErr.Code == domain.CodeNotFound || domainErr.Code == domain.CodeToolNotFound) {
 			writeDiscoveryProblem(writer, request, http.StatusNotFound, "tool_not_found", "Tool version was not found")
 			return
 		}
@@ -342,16 +342,15 @@ func oneOf(value string, allowed ...string) bool {
 	return false
 }
 
-func writeDiscoveryProblem(writer http.ResponseWriter, request *http.Request, status int, code, title string) {
-	requestID := writer.Header().Get(RequestIDHeader)
-	instance := request.URL.Path
-	if code == "tool_not_found" {
-		instance = "/v1/tools/{tool_id}"
+func writeDiscoveryProblem(writer http.ResponseWriter, request *http.Request, _ int, code, _ string) {
+	if code == string(domain.CodeToolNotFound) {
+		writePublicProblemAt(writer, request, domain.CodeToolNotFound, "/v1/tools/{tool_id}")
+		return
 	}
-	writeJSONContentType(writer, status, "application/problem+json", map[string]any{
-		"type": "urn:thinkpixeltg:problem:" + code, "title": title, "status": status,
-		"code": code, "correlation_id": requestID, "instance": instance,
-	})
+	if code == string(domain.CodeInternal) {
+		code = string(domain.CodeServiceUnavailable)
+	}
+	writePublicProblem(writer, request, domain.ErrorCode(code))
 }
 
 func writeJSONContentType(writer http.ResponseWriter, status int, contentType string, value any) {

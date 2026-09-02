@@ -56,6 +56,18 @@ correlation ID. Details never include arguments, provider payloads, tokens, secr
 references, policy internals, or existence across tenant boundaries. `202` is an
 observable nonterminal state, not proof that a downstream action occurred.
 
+The stable v1 codes and HTTP statuses are: `unauthenticated` (401),
+`identity_provider_unavailable` (503),
+`invalid_context` (401), `tool_not_found` (404), `tool_call_not_found` (404),
+`invalid_arguments` (400), `replay_conflict` (409), `authorization_denied` (403),
+`approval_required` (409), `approval_invalid` (403), `guardrail_blocked` (403),
+`credential_unavailable` (503), `connector_error` (502),
+`downstream_rejected` (502), `ambiguous_outcome` (409), `result_blocked` (403),
+`rate_limited` (429), `budget_exhausted` (403), `service_unavailable` (503),
+`not_ready` (503), and `internal` (500). An
+unrecognized internal classification is always collapsed to `internal`; its
+message and cause are never copied into the public problem document.
+
 Default initial limits are documented in `docs/operations/slos-and-capacity.md`;
 tool metadata may only narrow them. Contract-breaking changes require a new API
 major path/profile and migration period. OpenAPI changes require lint, schema,
