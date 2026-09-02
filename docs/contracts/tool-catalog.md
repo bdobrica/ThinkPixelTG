@@ -7,7 +7,10 @@ Status: Phase 0 normative baseline; contract version `tg.tool-catalog/v1alpha1`
 A tool is identified by a stable lower-case dotted `tool_id` such as
 `github.pull.comment`. A published version is addressed by `(tool_id, version)`;
 tenant is exposure scope, not part of tool identity. Versions use SemVer 2.0.0.
-Any change to executable or security-relevant semantics requires a new version.
+For a given `tool_id`, each new version MUST have greater SemVer precedence than
+every existing version. Build metadata does not affect precedence and therefore
+cannot create a distinct revision at the same precedence. Any change to
+executable or security-relevant semantics requires a new version.
 Discovery may select an administrator-configured default, but invocation persists
 the exact version before authorization and never floats during execution/replay.
 
