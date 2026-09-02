@@ -65,3 +65,13 @@ Resource projection runs only after schema validation/canonicalization and yield
 a typed, bounded structure consumed by AG, approval, evidence, and binding logic.
 Missing or ambiguous required projection makes the version unpublishable or the
 call invalid; it never falls back to an unconstrained resource.
+
+## Schema processing
+
+Input and output schemas use JSON Schema 2020-12. TG compiles schemas under the
+capacity limits in `docs/operations/slos-and-capacity.md` and accepts only local
+`$ref`/`$dynamicRef` targets; catalog compilation never performs network or file
+resolution. Compiled schemas are immutable and may be held in a bounded process
+cache keyed by the exact schema digest. Instance validation applies byte, depth,
+node, object-member, string, and error-count bounds before returning deterministic,
+payload-free violation codes and JSON Pointer locations.

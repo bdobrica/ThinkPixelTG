@@ -28,8 +28,10 @@ classified separately from TG process availability and tracked by dependency.
 - 4 MiB maximum buffered result and 16 MiB maximum explicitly streamed result;
   default tool result is 1 MiB. Oversize content is safely rejected/truncated only
   under an output contract, never silently accepted.
-- Maximum JSON depth 64, object members 10,000, string 256 KiB, schema 512 KiB,
-  and compiled schema complexity budget defined in Phase 4.
+- Maximum JSON depth 64, object members 10,000, string 256 KiB, and schema 512 KiB.
+  Schema compilation permits at most 10,000 JSON nodes and only local references;
+  each process caches at most 128 compiled schemas by default and 1,024 under an
+  explicit deployment configuration.
 - Public request deadline 30 s; connector default 10 s; per-tool deadline may only
   narrow unless an administrator-reviewed async profile applies.
 - 1,000 concurrent HTTP requests, 250 active connector sends, 50 per tenant, 20 per

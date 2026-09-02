@@ -1,2 +1,2 @@
-// Package schema owns schema compilation and validation support.
+// Package schema owns bounded JSON Schema 2020-12 compilation and validation.
 package schema
