@@ -5,6 +5,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strconv"
@@ -128,6 +129,67 @@ func TestRepositoriesIntegrationTenantIsolationAndRollback(t *testing.T) {
 	}
 	if _, err := repositoriesA.ConnectorInstances.Get(ctx, rolledBack); !isNotFound(err) {
 		t.Fatalf("rolled-back connector get error = %v, want not_found", err)
+	}
+}
+
+func TestAdminToolCatalogRepositoryPublishedVersionsAreImmutable(t *testing.T) {
+	ctx := context.Background()
+	pool := repositoryTestPool(t, ctx)
+	repository, err := NewAdminToolCatalogRepository(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	const toolID = "github.pull.comment"
+	if err := repository.SaveDraft(ctx, toolID, "1.0.0", []byte(`{ "risk": "read", "operation": "pull.get" }`), now); err != nil {
+		t.Fatalf("save draft: %v", err)
+	}
+	if err := repository.SaveDraft(ctx, toolID, "1.0.0", []byte(`{"risk":"read","operation":"pull.list"}`), now); err != nil {
+		t.Fatalf("replace draft: %v", err)
+	}
+	if err := repository.Publish(ctx, toolID, "1.0.0", now); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	published, err := repository.Get(ctx, toolID, "1.0.0")
+	if err != nil {
+		t.Fatalf("get published: %v", err)
+	}
+	var publishedDefinition map[string]string
+	if err := json.Unmarshal(published.Definition, &publishedDefinition); err != nil {
+		t.Fatalf("decode published definition: %v", err)
+	}
+	if published.State != "published" || publishedDefinition["operation"] != "pull.list" {
+		t.Fatalf("published record = %#v", published)
+	}
+
+	mutationErr := repository.SaveDraft(ctx, toolID, "1.0.0", []byte(`{"risk":"privileged"}`), now)
+	assertDomainCode(t, mutationErr, domain.CodeConflict)
+	if _, err := pool.Exec(ctx, `UPDATE tool_versions SET definition='{"risk":"privileged"}'
+		WHERE tool_id=$1 AND version=$2`, toolID, "1.0.0"); err == nil {
+		t.Fatal("direct published definition mutation succeeded")
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM tool_versions WHERE tool_id=$1 AND version=$2`, toolID, "1.0.0"); err == nil {
+		t.Fatal("direct published deletion succeeded")
+	}
+
+	if err := repository.SaveDraft(ctx, toolID, "1.1.0", []byte(`{"risk":"privileged"}`), now); err != nil {
+		t.Fatalf("save replacement version: %v", err)
+	}
+	if err := repository.Publish(ctx, toolID, "1.1.0", now.Add(time.Second)); err != nil {
+		t.Fatalf("publish replacement version: %v", err)
+	}
+	original, err := repository.Get(ctx, toolID, "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if original.State != "published" || bytes.Contains(original.Definition, []byte("privileged")) {
+		t.Fatalf("new version changed original: %#v", original)
+	}
+	if err := repository.Retire(ctx, toolID, "1.0.0"); err != nil {
+		t.Fatalf("retire original: %v", err)
+	}
+	if err := repository.SaveDraft(ctx, toolID, "1.0.0", []byte(`{"risk":"read"}`), now); err == nil {
+		t.Fatal("retired definition mutation succeeded")
 	}
 }
 
