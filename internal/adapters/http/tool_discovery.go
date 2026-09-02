@@ -28,6 +28,7 @@ const (
 
 type ToolDiscovery interface {
 	Discover(context.Context, ports.DiscoveryAuthorizationRequest) ([]ports.CatalogToolVersion, error)
+	Describe(context.Context, ports.DiscoveryAuthorizationRequest, string, string) (ports.CatalogToolVersion, error)
 }
 
 type DiscoveryIdentity func(context.Context) (ports.DiscoveryAuthorizationRequest, error)
@@ -71,10 +72,15 @@ func NewToolDiscoveryHandler(options ToolDiscoveryOptions) (http.Handler, error)
 	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/tools", handler)
+	mux.Handle("GET /v1/tools/{tool_id}", handler)
 	return mux, nil
 }
 
 func (handler *toolDiscoveryHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if request.PathValue("tool_id") != "" {
+		handler.describe(writer, request)
+		return
+	}
 	identity, err := handler.identity(request.Context())
 	if err != nil {
 		writeDiscoveryProblem(writer, request, http.StatusUnauthorized, "invalid_context", "Authentication context is invalid")
@@ -125,6 +131,44 @@ func (handler *toolDiscoveryHandler) ServeHTTP(writer http.ResponseWriter, reque
 		page.NextCursor = &next
 	}
 	writeJSON(writer, http.StatusOK, page)
+}
+
+func (handler *toolDiscoveryHandler) describe(writer http.ResponseWriter, request *http.Request) {
+	identity, err := handler.identity(request.Context())
+	if err != nil {
+		writeDiscoveryProblem(writer, request, http.StatusUnauthorized, "invalid_context", "Authentication context is invalid")
+		return
+	}
+	query := request.URL.Query()
+	if len(query) != 1 || !query.Has("version") || len(query["version"]) != 1 || query.Get("version") == "" {
+		writeDiscoveryProblem(writer, request, http.StatusBadRequest, "invalid_arguments", "A single version parameter is required")
+		return
+	}
+	toolID, version := request.PathValue("tool_id"), query.Get("version")
+	if _, parseErr := domain.ParseToolID(toolID); parseErr != nil {
+		writeDiscoveryProblem(writer, request, http.StatusNotFound, "tool_not_found", "Tool version was not found")
+		return
+	}
+	if _, parseErr := domain.ParseSemanticVersion(version); parseErr != nil {
+		writeDiscoveryProblem(writer, request, http.StatusNotFound, "tool_not_found", "Tool version was not found")
+		return
+	}
+	candidate, err := handler.discovery.Describe(request.Context(), identity, toolID, version)
+	if err != nil {
+		var domainErr *domain.Error
+		if errors.As(err, &domainErr) && domainErr.Code == domain.CodeNotFound {
+			writeDiscoveryProblem(writer, request, http.StatusNotFound, "tool_not_found", "Tool version was not found")
+			return
+		}
+		writeDiscoveryProblem(writer, request, http.StatusServiceUnavailable, "internal", "Tool discovery is unavailable")
+		return
+	}
+	tool, err := projectDiscoveryTool(candidate)
+	if err != nil {
+		writeDiscoveryProblem(writer, request, http.StatusServiceUnavailable, "internal", "Tool discovery is unavailable")
+		return
+	}
+	writeJSON(writer, http.StatusOK, tool)
 }
 
 func (handler *toolDiscoveryHandler) parsePage(identity ports.DiscoveryAuthorizationRequest, request *http.Request) (int, discoveryCursor, error) {
@@ -300,9 +344,13 @@ func oneOf(value string, allowed ...string) bool {
 
 func writeDiscoveryProblem(writer http.ResponseWriter, request *http.Request, status int, code, title string) {
 	requestID := writer.Header().Get(RequestIDHeader)
+	instance := request.URL.Path
+	if code == "tool_not_found" {
+		instance = "/v1/tools/{tool_id}"
+	}
 	writeJSONContentType(writer, status, "application/problem+json", map[string]any{
 		"type": "urn:thinkpixeltg:problem:" + code, "title": title, "status": status,
-		"code": code, "correlation_id": requestID, "instance": request.URL.Path,
+		"code": code, "correlation_id": requestID, "instance": instance,
 	})
 }
 

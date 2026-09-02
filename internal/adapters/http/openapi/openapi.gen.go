@@ -126,7 +126,8 @@ type ListToolsParams struct {
 
 // GetToolParams defines parameters for GetTool.
 type GetToolParams struct {
-	Version *string `form:"version,omitempty" json:"version,omitempty"`
+	// Version Exact immutable SemVer; describe never selects a floating version.
+	Version string `form:"version" json:"version"`
 }
 
 // SetTenantToolExposureJSONRequestBody defines body for SetTenantToolExposure for application/json ContentType.
@@ -514,9 +515,9 @@ func (siw *ServerInterfaceWrapper) GetTool(w http.ResponseWriter, r *http.Reques
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetToolParams
 
-	// ------------- Optional query parameter "version" -------------
+	// ------------- Required query parameter "version" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
@@ -1067,6 +1068,20 @@ func (response GetTool400ApplicationProblemPlusJSONResponse) VisitGetToolRespons
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTool404ApplicationProblemPlusJSONResponse Problem
+
+func (response GetTool404ApplicationProblemPlusJSONResponse) VisitGetToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }

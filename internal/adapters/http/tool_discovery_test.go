@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bdobrica/ThinkPixelTG/internal/adapters/http/openapi"
+	"github.com/bdobrica/ThinkPixelTG/internal/domain"
 	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 )
 
@@ -124,6 +125,54 @@ func TestNewToolDiscoveryHandlerValidatesSecurityConfiguration(t *testing.T) {
 	}
 }
 
+func TestDescribeToolReturnsExactTrustedProjection(t *testing.T) {
+	t.Parallel()
+	discovery := toolDiscoveryFunc(func(context.Context, ports.DiscoveryAuthorizationRequest) ([]ports.CatalogToolVersion, error) {
+		return []ports.CatalogToolVersion{discoveryCandidate("github.pull.comment", "1.0.0")}, nil
+	})
+	handler := newDiscoveryTestHandler(t, discovery, time.Now, discoveryTestIdentity)
+	response := performDiscoveryRequest(handler, "/v1/tools/github.pull.comment?version=1.0.0")
+	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+	var tool openapi.Tool
+	if err := json.Unmarshal(response.Body.Bytes(), &tool); err != nil {
+		t.Fatal(err)
+	}
+	if tool.ToolId != "github.pull.comment" || tool.Version != "1.0.0" || tool.Risk != "read" || tool.SideEffect || !tool.OpenWorldResult {
+		t.Fatalf("tool = %#v", tool)
+	}
+}
+
+func TestDescribeToolUsesEnumerationSafeErrors(t *testing.T) {
+	t.Parallel()
+	discovery := toolDiscoveryFunc(func(context.Context, ports.DiscoveryAuthorizationRequest) ([]ports.CatalogToolVersion, error) {
+		return []ports.CatalogToolVersion{discoveryCandidate("github.pull.comment", "1.0.0")}, nil
+	})
+	handler := newDiscoveryTestHandler(t, discovery, time.Now, discoveryTestIdentity)
+	for _, url := range []string{
+		"/v1/tools/private.tool.read?version=1.0.0",
+		"/v1/tools/not-valid?version=1.0.0",
+		"/v1/tools/github.pull.comment?version=latest",
+	} {
+		response := performDiscoveryRequest(handler, url)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), `"code":"tool_not_found"`) || strings.Contains(response.Body.String(), "private.tool.read") {
+			t.Fatalf("%s response = %d %s", url, response.Code, response.Body.String())
+		}
+	}
+	for _, url := range []string{
+		"/v1/tools/github.pull.comment",
+		"/v1/tools/github.pull.comment?version=",
+		"/v1/tools/github.pull.comment?version=1.0.0&version=1.1.0",
+		"/v1/tools/github.pull.comment?version=1.0.0&unknown=true",
+	} {
+		response := performDiscoveryRequest(handler, url)
+		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"invalid_arguments"`) {
+			t.Fatalf("%s response = %d %s", url, response.Code, response.Body.String())
+		}
+	}
+}
+
 func newDiscoveryTestHandler(t *testing.T, discovery ToolDiscovery, now func() time.Time, identity DiscoveryIdentity) http.Handler {
 	t.Helper()
 	handler, err := NewToolDiscoveryHandler(ToolDiscoveryOptions{
@@ -162,4 +211,17 @@ type toolDiscoveryFunc func(context.Context, ports.DiscoveryAuthorizationRequest
 
 func (function toolDiscoveryFunc) Discover(ctx context.Context, request ports.DiscoveryAuthorizationRequest) ([]ports.CatalogToolVersion, error) {
 	return function(ctx, request)
+}
+
+func (function toolDiscoveryFunc) Describe(ctx context.Context, request ports.DiscoveryAuthorizationRequest, toolID, version string) (ports.CatalogToolVersion, error) {
+	tools, err := function(ctx, request)
+	if err != nil {
+		return ports.CatalogToolVersion{}, err
+	}
+	for _, tool := range tools {
+		if tool.ToolID == toolID && tool.Version == version {
+			return tool, nil
+		}
+	}
+	return ports.CatalogToolVersion{}, domain.NewError(domain.CodeNotFound, "not found", nil)
 }

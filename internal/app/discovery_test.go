@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bdobrica/ThinkPixelTG/internal/domain"
 	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 )
 
@@ -71,6 +72,31 @@ func TestDiscoveryRejectsInvalidCatalogBeforeAuthorization(t *testing.T) {
 	)
 	if _, err := service.Discover(t.Context(), discoveryRequest()); err == nil || called {
 		t.Fatalf("invalid catalog error = %v, authorizer called = %t", err, called)
+	}
+}
+
+func TestDescribeRequiresExactAuthorizedVersion(t *testing.T) {
+	t.Parallel()
+	catalog := discoveryCatalogFunc(func(context.Context) ([]ports.CatalogToolVersion, error) {
+		return []ports.CatalogToolVersion{
+			{ToolID: "github.pull.comment", Version: "1.0.0"},
+			{ToolID: "github.pull.comment", Version: "2.0.0"},
+		}, nil
+	})
+	authorizer := discoveryAuthorizerFunc(func(_ context.Context, request ports.DiscoveryAuthorizationRequest) (ports.DiscoveryAuthorizationDecision, error) {
+		return ports.DiscoveryAuthorizationDecision{Allowed: request.Candidates[:1]}, nil
+	})
+	service, _ := NewDiscoveryService(catalog, authorizer)
+	tool, err := service.Describe(t.Context(), discoveryRequest(), "github.pull.comment", "1.0.0")
+	if err != nil || tool.Version != "1.0.0" {
+		t.Fatalf("Describe() = %#v, %v", tool, err)
+	}
+	for _, key := range [][2]string{{"github.pull.comment", "2.0.0"}, {"private.tool.read", "1.0.0"}, {"not-valid", "latest"}} {
+		_, err := service.Describe(t.Context(), discoveryRequest(), key[0], key[1])
+		var domainErr *domain.Error
+		if !errors.As(err, &domainErr) || domainErr.Code != domain.CodeNotFound {
+			t.Fatalf("Describe(%q, %q) error = %v", key[0], key[1], err)
+		}
 	}
 }
 

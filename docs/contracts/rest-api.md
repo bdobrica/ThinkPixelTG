@@ -21,6 +21,12 @@ The default page size is 50 and the maximum is 100. Continuation cursors bind th
 governed identity and effective page size, and a malformed, expired, tampered, or
 rebound cursor returns `invalid_arguments` without exposing catalog contents.
 
+`GET /v1/tools/{tool_id}` requires one exact `version` query parameter and never
+floats to a newer version. It applies the same tenant exposure and authorization
+filter as list discovery before returning the trusted metadata projection.
+Unknown, malformed, unexposed, and unauthorized tool-version keys all return the
+same `404 tool_not_found` response without revealing which condition occurred.
+
 Errors use `application/problem+json` per RFC 9457 with stable `code` and opaque
 correlation ID. Details never include arguments, provider payloads, tokens, secret
 references, policy internals, or existence across tenant boundaries. `202` is an

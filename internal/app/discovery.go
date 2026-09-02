@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bdobrica/ThinkPixelTG/internal/domain"
 	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 )
 
@@ -66,4 +67,29 @@ func (service *DiscoveryService) Discover(
 		}
 	}
 	return visible, nil
+}
+
+// Describe returns one exact immutable version only when it is both exposed to
+// the tenant and authorized for the complete governed discovery context.
+func (service *DiscoveryService) Describe(
+	ctx context.Context,
+	request ports.DiscoveryAuthorizationRequest,
+	toolID, version string,
+) (ports.CatalogToolVersion, error) {
+	if _, err := domain.ParseToolID(toolID); err != nil {
+		return ports.CatalogToolVersion{}, domain.NewError(domain.CodeNotFound, "tool version is not available", nil)
+	}
+	if _, err := domain.ParseSemanticVersion(version); err != nil {
+		return ports.CatalogToolVersion{}, domain.NewError(domain.CodeNotFound, "tool version is not available", nil)
+	}
+	visible, err := service.Discover(ctx, request)
+	if err != nil {
+		return ports.CatalogToolVersion{}, err
+	}
+	for _, candidate := range visible {
+		if candidate.ToolID == toolID && candidate.Version == version {
+			return candidate, nil
+		}
+	}
+	return ports.CatalogToolVersion{}, domain.NewError(domain.CodeNotFound, "tool version is not available", nil)
 }

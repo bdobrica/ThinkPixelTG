@@ -64,6 +64,8 @@ paths:
         - $ref: '#/components/parameters/ToolId'
         - name: version
           in: query
+          required: true
+          description: Exact immutable SemVer; describe never selects a floating version.
           schema: {type: string, maxLength: 64}
       responses:
         '200':
@@ -71,7 +73,23 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Tool'}
+              examples:
+                described_version:
+                  value:
+                    tool_id: github.pull.comment
+                    version: 1.0.0
+                    description: Add a reviewed comment to a pull request.
+                    input_schema: {type: object, required: [repository, pull_number, body]}
+                    output_schema: {type: object, required: [comment_id]}
+                    risk: bounded_write
+                    side_effect: true
+                    retry_class: downstream_idempotency
+                    approval: policy
+                    open_world_result: false
         '400': {$ref: '#/components/responses/Problem'}
+        '404':
+          $ref: '#/components/responses/Problem'
+          description: Unknown, unexposed, or unauthorized tool versions use the same response.
         default: {$ref: '#/components/responses/Problem'}
   /v1/tool-calls:
     post:
