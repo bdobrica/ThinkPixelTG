@@ -91,3 +91,24 @@ type ConnectorResult struct {
 type ConnectorExecutor interface {
 	Execute(context.Context, ConnectorRequest) (ConnectorResult, error)
 }
+
+// ConnectorReconciliationRequest contains only stable, previously persisted
+// execution evidence. It must not contain caller-selected destinations or
+// credential material.
+type ConnectorReconciliationRequest struct {
+	InvocationID string
+	Tool         domain.ToolVersionDefinition
+	Evidence     json.RawMessage
+}
+
+type ConnectorReconciliationResult struct {
+	Outcome  string
+	Result   json.RawMessage
+	Evidence json.RawMessage
+}
+
+// ConnectorReconciler is implemented only by connectors whose immutable
+// operation contract provides authoritative reconciliation.
+type ConnectorReconciler interface {
+	Reconcile(context.Context, ConnectorReconciliationRequest) (ConnectorReconciliationResult, error)
+}

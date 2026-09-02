@@ -51,3 +51,15 @@ send, response limits/malformed bodies, status mapping, secret canaries, stable
 idempotency propagation, all crash windows, reconciliation outcomes, telemetry
 cardinality/redaction, and concurrent fencing. Each write has a qualification
 document explaining its provider proof and residual duplicate/ambiguity risk.
+
+## Hermetic test connector
+
+The in-process `mock` adapter is test-only and performs no network, filesystem,
+credential, or provider access. Tests configure named read/write operations with
+bounded deterministic outcome sequences, optional cancellable delay, typed
+transport-error injection, and one reconciliation classification. Once a sequence
+is exhausted its final outcome repeats. Ambiguous writes explicitly declare
+whether the simulated provider applied the action, allowing reconciliation tests
+to distinguish confirmed success from confirmed non-application without blind
+retry. Its evidence contains only the configured operation name and booleans; it
+must not contain request arguments, credentials, or simulated provider payloads.
