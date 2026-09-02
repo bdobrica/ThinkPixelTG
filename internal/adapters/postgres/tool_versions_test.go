@@ -87,6 +87,25 @@ func TestAdminToolCatalogStateTransitionsAreConditional(t *testing.T) {
 	assertDomainCode(t, repository.Retire(t.Context(), "github.pull.comment", "1.2.3"), domain.CodeConflict)
 }
 
+func TestTenantToolCatalogQueriesRequireEnabledPublishedExposure(t *testing.T) {
+	db := &toolCatalogDB{rowsAffected: 1}
+	repositories, err := NewTenantRepositories(db, "019b0000-0000-7000-8000-000000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = repositories.ToolCatalog.GetExposedVersion(t.Context(), "github.pull.comment", "1.0.0")
+	if !strings.Contains(db.sql, "e.tenant_id = $1") || !strings.Contains(db.sql, "e.enabled") ||
+		!strings.Contains(db.sql, "v.state = 'published'") {
+		t.Fatalf("exposed lookup is not tenant/enabled/published scoped: %s", db.sql)
+	}
+	if err := repositories.ToolCatalog.SetExposure(t.Context(), "not-valid", "latest", true, time.Now()); err == nil {
+		t.Fatal("invalid exposure key accepted")
+	}
+	if err := repositories.ToolCatalog.SetExposure(t.Context(), "github.pull.comment", "1.0.0", true, time.Time{}); err == nil {
+		t.Fatal("zero exposure timestamp accepted")
+	}
+}
+
 func assertDomainCode(t *testing.T, err error, code domain.ErrorCode) {
 	t.Helper()
 	var domainError *domain.Error
@@ -107,7 +126,8 @@ func (db *toolCatalogDB) Exec(_ context.Context, sql string, arguments ...any) (
 }
 
 func (db *toolCatalogDB) Query(context.Context, string, ...any) (pgx.Rows, error) { return nil, nil }
-func (db *toolCatalogDB) QueryRow(context.Context, string, ...any) pgx.Row {
+func (db *toolCatalogDB) QueryRow(_ context.Context, sql string, arguments ...any) pgx.Row {
+	db.sql, db.arguments = sql, arguments
 	return repositoryRowStub{}
 }
 

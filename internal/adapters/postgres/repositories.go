@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bdobrica/ThinkPixelTG/internal/domain"
+	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -83,14 +84,45 @@ func (r ToolCatalogRepository) GetExposedVersion(ctx context.Context, toolID, ve
 	const query = `SELECT v.tool_id, v.version, v.state, v.definition, v.definition_digest, v.published_at
 		FROM tenant_tool_exposures e JOIN tool_versions v
 		ON v.tool_id = e.tool_id AND v.version = e.version
-		WHERE e.tenant_id = $1 AND e.tool_id = $2 AND e.version = $3 AND e.enabled`
+		WHERE e.tenant_id = $1 AND e.tool_id = $2 AND e.version = $3
+		AND e.enabled AND v.state = 'published'`
 	var value ToolVersion
 	err := r.db.QueryRow(ctx, query, r.tenantID, toolID, version).Scan(&value.ToolID, &value.Version,
 		&value.State, &value.Definition, &value.DefinitionDigest, &value.PublishedAt)
 	return value, repositoryError("get exposed tool version", err)
 }
 
+func (r ToolCatalogRepository) ListExposedForDiscovery(ctx context.Context) ([]ports.CatalogToolVersion, error) {
+	const query = `SELECT v.tool_id, v.version, v.definition, v.definition_digest
+		FROM tenant_tool_exposures e JOIN tool_versions v
+		ON v.tool_id = e.tool_id AND v.version = e.version
+		WHERE e.tenant_id = $1 AND e.enabled AND v.state = 'published'`
+	rows, err := r.db.Query(ctx, query, r.tenantID)
+	if err != nil {
+		return nil, repositoryError("list exposed tool versions", err)
+	}
+	defer rows.Close()
+	values := make([]ports.CatalogToolVersion, 0)
+	for rows.Next() {
+		var value ports.CatalogToolVersion
+		if err := rows.Scan(&value.ToolID, &value.Version, &value.Definition, &value.DefinitionDigest); err != nil {
+			return nil, repositoryError("scan exposed tool version", err)
+		}
+		values = append(values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, repositoryError("list exposed tool versions", err)
+	}
+	return values, nil
+}
+
 func (r ToolCatalogRepository) SetExposure(ctx context.Context, toolID, version string, enabled bool, at time.Time) error {
+	if err := validateToolVersionKey(toolID, version); err != nil {
+		return err
+	}
+	if at.IsZero() {
+		return domain.NewError(domain.CodeInvalidArgument, "exposure timestamp is required", nil)
+	}
 	const query = `INSERT INTO tenant_tool_exposures (tenant_id, tool_id, version, enabled, updated_at)
 		VALUES ($1, $2, $3, $4, $5) ON CONFLICT (tenant_id, tool_id, version)
 		DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = EXCLUDED.updated_at`

@@ -70,6 +70,9 @@ Discovery is tenant scoped, authorization filtered, deterministically ordered,
 and enumeration safe. A caller cannot request an unexposed version by knowing its
 ID. Replay of an existing logical invocation uses its persisted version even if
 the default changed, but cannot execute if current disable/revocation rules block.
+Discovery candidates are derived only from the authenticated tenant's enabled,
+published exposures. Authorization may only remove those candidates; an unavailable
+or malformed discovery decision fails closed and never returns the unfiltered set.
 
 ## Connector and resource binding
 

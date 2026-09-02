@@ -193,6 +193,61 @@ func TestAdminToolCatalogRepositoryPublishedVersionsAreImmutable(t *testing.T) {
 	}
 }
 
+func TestToolDiscoveryExposureIsTenantScopedAndLifecycleAware(t *testing.T) {
+	ctx := context.Background()
+	pool := repositoryTestPool(t, ctx)
+	const (
+		tenantA = "019b0000-0000-7000-8000-000000000201"
+		tenantB = "019b0000-0000-7000-8000-000000000202"
+		toolID  = "github.pull.comment"
+		version = "1.0.0"
+	)
+	for _, tenantID := range []string{tenantA, tenantB} {
+		if _, err := pool.Exec(ctx, `INSERT INTO tenants (tenant_id, created_at) VALUES ($1, now())`, tenantID); err != nil {
+			t.Fatalf("insert tenant: %v", err)
+		}
+	}
+	admin, err := NewAdminToolCatalogRepository(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if err := admin.SaveDraft(ctx, toolID, version, []byte(`{"risk":"read"}`), now); err != nil {
+		t.Fatalf("save draft: %v", err)
+	}
+	if err := admin.Publish(ctx, toolID, version, now); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	repositoriesA, _ := NewTenantRepositories(pool, tenantA)
+	repositoriesB, _ := NewTenantRepositories(pool, tenantB)
+	if err := repositoriesA.ToolCatalog.SetExposure(ctx, toolID, version, true, now); err != nil {
+		t.Fatalf("enable tenant A exposure: %v", err)
+	}
+
+	visibleA, err := repositoriesA.ToolCatalog.ListExposedForDiscovery(ctx)
+	if err != nil || len(visibleA) != 1 || visibleA[0].ToolID != toolID {
+		t.Fatalf("tenant A discovery = %#v, %v", visibleA, err)
+	}
+	visibleB, err := repositoriesB.ToolCatalog.ListExposedForDiscovery(ctx)
+	if err != nil || len(visibleB) != 0 {
+		t.Fatalf("tenant B enumerated tenant A exposure: %#v, %v", visibleB, err)
+	}
+	if _, err := repositoriesB.ToolCatalog.GetExposedVersion(ctx, toolID, version); !isNotFound(err) {
+		t.Fatalf("tenant B guessed lookup error = %v, want not_found", err)
+	}
+
+	if err := admin.Retire(ctx, toolID, version); err != nil {
+		t.Fatalf("retire tool version: %v", err)
+	}
+	visibleA, err = repositoriesA.ToolCatalog.ListExposedForDiscovery(ctx)
+	if err != nil || len(visibleA) != 0 {
+		t.Fatalf("retired tool remained discoverable: %#v, %v", visibleA, err)
+	}
+	if _, err := repositoriesA.ToolCatalog.GetExposedVersion(ctx, toolID, version); !isNotFound(err) {
+		t.Fatalf("retired tool lookup error = %v, want not_found", err)
+	}
+}
+
 func isNotFound(err error) bool {
 	var domainErr *domain.Error
 	return errors.As(err, &domainErr) && domainErr.Code == domain.CodeNotFound
