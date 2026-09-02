@@ -138,6 +138,71 @@ func TestBodyLimitAndCancellation(t *testing.T) {
 	}
 }
 
+func TestPublicRequestAdmissionLimits(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	handler := publicRequestLimits(4, 1, stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, _ *stdhttp.Request) {
+		close(entered)
+		<-release
+		writer.WriteHeader(stdhttp.StatusNoContent)
+	}))
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(stdhttp.MethodGet, "/v1/tools", nil))
+	}()
+	<-entered
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(stdhttp.MethodGet, "/v1/tools", nil))
+	if response.Code != stdhttp.StatusTooManyRequests || !strings.Contains(response.Body.String(), `"code":"rate_limited"`) {
+		t.Fatalf("overload response = %d %s", response.Code, response.Body.String())
+	}
+	close(release)
+	<-firstDone
+
+	for name, request := range map[string]*stdhttp.Request{
+		"declared oversize": httptest.NewRequest(stdhttp.MethodPost, "/v1/tool-calls", strings.NewReader("12345")),
+		"GET body":          httptest.NewRequest(stdhttp.MethodGet, "/v1/tools", strings.NewReader("x")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			publicRequestLimits(4, 1, stdhttp.HandlerFunc(func(stdhttp.ResponseWriter, *stdhttp.Request) { t.Fatal("application reached") })).ServeHTTP(response, request)
+			if response.Code != stdhttp.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"invalid_arguments"`) {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestPublicResultLimitFailsClosedBeforeWritingContent(t *testing.T) {
+	response := httptest.NewRecorder()
+	response.Header().Set(RequestIDHeader, "request-1")
+	writeJSON(response, stdhttp.StatusOK, map[string]string{"result": strings.Repeat("x", maxPublicResultBytes)})
+	if response.Code != stdhttp.StatusForbidden || response.Header().Get("Content-Type") != "application/problem+json" || !strings.Contains(response.Body.String(), `"code":"result_blocked"`) || strings.Contains(response.Body.String(), "xxxx") {
+		t.Fatalf("response = %d %#v %.200s", response.Code, response.Header(), response.Body.String())
+	}
+}
+
+func TestServerRejectsLimitsAbovePublicEnvelope(t *testing.T) {
+	for name, mutate := range map[string]func(*Options){
+		"request bytes": func(options *Options) { options.Config.MaxBodyBytes = maxPublicRequestBytes + 1 },
+		"deadline":      func(options *Options) { options.Config.WriteTimeout = maxPublicRequestDuration + time.Second },
+	} {
+		t.Run(name, func(t *testing.T) {
+			observability, err := telemetry.Bootstrap(context.Background(), telemetry.BootstrapConfig{ServiceName: "test", TraceMode: telemetry.TraceNoop})
+			if err != nil {
+				t.Fatal(err)
+			}
+			options := Options{Config: config.Default().HTTP, Logger: telemetry.NewLogger(slog.NewTextHandler(io.Discard, nil)), Observability: observability}
+			mutate(&options)
+			if _, err := New(options); err == nil {
+				t.Fatal("expected invalid public limit")
+			}
+		})
+	}
+}
+
 func TestReadinessFailure(t *testing.T) {
 	server := testServer(t, func(options *Options) {
 		options.Readiness = func(context.Context) error { return errors.New("database unavailable") }

@@ -22,6 +22,13 @@ import (
 
 const RequestIDHeader = "X-Request-ID"
 
+const (
+	maxPublicRequestBytes       = 1 << 20
+	maxPublicRequestDuration    = 30 * time.Second
+	maxConcurrentPublicRequests = 1000
+	maxPublicResultBytes        = 4 << 20
+)
+
 type Authenticator func(context.Context, *stdhttp.Request) (context.Context, error)
 type Readiness func(context.Context) error
 type IDGenerator func() (domain.UUID, error)
@@ -79,6 +86,7 @@ func New(options Options) (*Server, error) {
 	mux.Handle("/", options.Application)
 
 	handler := authentication(options.Authenticator, mux)
+	handler = publicRequestLimits(options.Config.MaxBodyBytes, maxConcurrentPublicRequests, handler)
 	handler = bodyLimit(options.Config.MaxBodyBytes, handler)
 	handler = requestDeadline(options.Config.WriteTimeout, handler)
 	handler = accessTelemetry(options.Logger, options.Observability, handler)
@@ -98,7 +106,7 @@ func New(options Options) (*Server, error) {
 }
 
 func validateHTTPConfig(cfg config.HTTP) error {
-	if strings.TrimSpace(cfg.Address) == "" || cfg.ReadHeaderTimeout <= 0 || cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.IdleTimeout <= 0 || cfg.ShutdownTimeout <= 0 || cfg.MaxHeaderBytes < 1024 || cfg.MaxBodyBytes < 1 {
+	if strings.TrimSpace(cfg.Address) == "" || cfg.ReadHeaderTimeout <= 0 || cfg.ReadTimeout <= 0 || cfg.WriteTimeout <= 0 || cfg.WriteTimeout > maxPublicRequestDuration || cfg.IdleTimeout <= 0 || cfg.ShutdownTimeout <= 0 || cfg.MaxHeaderBytes < 1024 || cfg.MaxBodyBytes < 1 || cfg.MaxBodyBytes > maxPublicRequestBytes {
 		return errors.New("invalid HTTP server limits")
 	}
 	return nil
@@ -221,6 +229,37 @@ func bodyLimit(limit int64, next stdhttp.Handler) stdhttp.Handler {
 	})
 }
 
+// publicRequestLimits applies the deployment-wide admission envelope before a
+// public request can allocate an application-sized body or reach a dependency.
+// Tool-version limits may only narrow these bounds inside the application.
+func publicRequestLimits(maxBodyBytes int64, maxConcurrent int, next stdhttp.Handler) stdhttp.Handler {
+	permits := make(chan struct{}, maxConcurrent)
+	return stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, request *stdhttp.Request) {
+		if !strings.HasPrefix(request.URL.Path, "/v1/") {
+			next.ServeHTTP(writer, request)
+			return
+		}
+		select {
+		case permits <- struct{}{}:
+			defer func() { <-permits }()
+		default:
+			writePublicProblem(writer, request, domain.CodeRateLimited)
+			return
+		}
+		if request.ContentLength > maxBodyBytes {
+			writePublicProblem(writer, request, domain.CodeInvalidArguments)
+			return
+		}
+		if request.Method == stdhttp.MethodGet || request.Method == stdhttp.MethodHead {
+			if request.ContentLength > 0 {
+				writePublicProblem(writer, request, domain.CodeInvalidArguments)
+				return
+			}
+		}
+		next.ServeHTTP(writer, request)
+	})
+}
+
 func authentication(authenticate Authenticator, next stdhttp.Handler) stdhttp.Handler {
 	return stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, request *stdhttp.Request) {
 		ctx, err := authenticate(request.Context(), request)
@@ -266,10 +305,25 @@ func WriteProblem(writer stdhttp.ResponseWriter, request *stdhttp.Request, probl
 }
 
 func writeJSON(writer stdhttp.ResponseWriter, status int, value any) {
-	writer.Header().Set("Content-Type", "application/json")
-	writer.Header().Set("Content-Length", strconv.Itoa(jsonSize(value)))
-	writer.WriteHeader(status)
-	_ = json.NewEncoder(writer).Encode(value)
+	writeBoundedJSON(writer, status, "application/json", false, value)
 }
 
-func jsonSize(value any) int { encoded, _ := json.Marshal(value); return len(encoded) + 1 }
+func writeBoundedJSON(writer stdhttp.ResponseWriter, status int, contentType string, noStore bool, value any) {
+	encoded, err := json.Marshal(value)
+	if err != nil || len(encoded)+1 > maxPublicResultBytes {
+		correlationID := writer.Header().Get(RequestIDHeader)
+		problem, _ := json.Marshal(Problem{Type: "urn:thinkpixeltg:problem:result_blocked", Title: "Tool result was blocked", Status: stdhttp.StatusForbidden, Code: string(domain.CodeResultBlocked), CorrelationID: correlationID})
+		writer.Header().Set("Content-Type", "application/problem+json")
+		writer.Header().Set("Cache-Control", "no-store")
+		writer.WriteHeader(stdhttp.StatusForbidden)
+		_, _ = writer.Write(append(problem, '\n'))
+		return
+	}
+	writer.Header().Set("Content-Type", contentType)
+	if noStore {
+		writer.Header().Set("Cache-Control", "no-store")
+	}
+	writer.Header().Set("Content-Length", strconv.Itoa(len(encoded)+1))
+	writer.WriteHeader(status)
+	_, _ = writer.Write(append(encoded, '\n'))
+}

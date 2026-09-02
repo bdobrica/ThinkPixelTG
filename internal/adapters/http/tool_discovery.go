@@ -354,8 +354,5 @@ func writeDiscoveryProblem(writer http.ResponseWriter, request *http.Request, _ 
 }
 
 func writeJSONContentType(writer http.ResponseWriter, status int, contentType string, value any) {
-	writer.Header().Set("Content-Type", contentType)
-	writer.Header().Set("Cache-Control", "no-store")
-	writer.WriteHeader(status)
-	_ = json.NewEncoder(writer).Encode(value)
+	writeBoundedJSON(writer, status, contentType, true, value)
 }

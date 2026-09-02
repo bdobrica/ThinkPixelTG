@@ -418,7 +418,7 @@ func (cfg Config) Validate() error {
 			return fmt.Errorf("http %s timeout must be positive", name)
 		}
 	}
-	if cfg.HTTP.MaxHeaderBytes < 1024 || cfg.HTTP.MaxBodyBytes < 1 {
+	if cfg.HTTP.MaxHeaderBytes < 1024 || cfg.HTTP.MaxBodyBytes < 1 || cfg.HTTP.MaxBodyBytes > 1<<20 || cfg.HTTP.WriteTimeout > 30*time.Second {
 		return errors.New("http limits must be positive and bounded")
 	}
 	if cfg.Telemetry.Mode != "noop" && cfg.Telemetry.Mode != "local" && cfg.Telemetry.Mode != "otlp" {

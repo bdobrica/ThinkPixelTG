@@ -68,7 +68,14 @@ The stable v1 codes and HTTP statuses are: `unauthenticated` (401),
 unrecognized internal classification is always collapsed to `internal`; its
 message and cause are never copied into the public problem document.
 
-Default initial limits are documented in `docs/operations/slos-and-capacity.md`;
-tool metadata may only narrow them. Contract-breaking changes require a new API
+Public handlers enforce the initial deployment envelope before reaching application
+dependencies: 1 MiB request bodies, no bodies on `GET`/`HEAD`, JSON media type on
+tool-call creation, a 30-second request context deadline, at most 1,000 concurrent
+`/v1` requests, and at most 4 MiB of serialized buffered output. Oversize public
+output fails closed as `result_blocked`; overload is `rate_limited`. Discovery uses
+the bounded pagination rules above. JSON Schema compilation and validation enforce
+the 512 KiB schema, depth 64, 10,000-node/member, 256 KiB string, and bounded-cache
+limits documented in `docs/operations/slos-and-capacity.md`. Tool metadata may only
+narrow these limits. Contract-breaking changes require a new API
 major path/profile and migration period. OpenAPI changes require lint, schema,
 example, generated-type drift, and implementation conformance checks.
