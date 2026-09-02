@@ -105,7 +105,7 @@ paths:
             schema: {$ref: '#/components/schemas/CreateToolCall'}
       responses:
         '200':
-          description: Existing matching logical invocation.
+          description: Existing matching logical invocation; no second logical action is created.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolCall'}
@@ -114,7 +114,17 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolCall'}
+              example:
+                tool_call_id: 01890f3e-7b6d-7cc0-98c4-dc0c0c073990
+                tool_id: github.pull.comment
+                version: 1.0.0
+                state: post_tool
+                created_at: '2026-09-02T12:00:00Z'
+                updated_at: '2026-09-02T12:00:01Z'
         '400': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/tool-calls/{tool_call_id}:
     get:
@@ -263,10 +273,12 @@ components:
       additionalProperties: false
       required: [tool_id, arguments]
       properties:
-        tool_id: {type: string}
-        version: {type: string}
+        tool_id: {type: string, pattern: '^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$', maxLength: 128}
+        version:
+          type: string
+          description: Exact immutable SemVer. When omitted, the tenant's configured default is resolved once and persisted.
         arguments: {}
-      description: Governance identity, destination, credential, and retry overrides are prohibited.
+      description: Governance identity, destination, credential, and retry overrides are prohibited. Idempotent replays must use the same exact tool version and canonical arguments.
     ToolCall:
       type: object
       additionalProperties: false

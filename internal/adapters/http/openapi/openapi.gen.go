@@ -17,11 +17,13 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// CreateToolCall Governance identity, destination, credential, and retry overrides are prohibited.
+// CreateToolCall Governance identity, destination, credential, and retry overrides are prohibited. Idempotent replays must use the same exact tool version and canonical arguments.
 type CreateToolCall struct {
 	Arguments interface{} `json:"arguments"`
 	ToolId    string      `json:"tool_id"`
-	Version   *string     `json:"version,omitempty"`
+
+	// Version Exact immutable SemVer. When omitted, the tenant's configured default is resolved once and persisted.
+	Version *string `json:"version,omitempty"`
 }
 
 // Problem defines model for Problem.
@@ -902,6 +904,48 @@ func (response CreateToolCall400ApplicationProblemPlusJSONResponse) VisitCreateT
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateToolCall403ApplicationProblemPlusJSONResponse Problem
+
+func (response CreateToolCall403ApplicationProblemPlusJSONResponse) VisitCreateToolCallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateToolCall404ApplicationProblemPlusJSONResponse Problem
+
+func (response CreateToolCall404ApplicationProblemPlusJSONResponse) VisitCreateToolCallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateToolCall409ApplicationProblemPlusJSONResponse Problem
+
+func (response CreateToolCall409ApplicationProblemPlusJSONResponse) VisitCreateToolCallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }

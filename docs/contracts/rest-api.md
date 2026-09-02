@@ -27,6 +27,21 @@ filter as list discovery before returning the trusted metadata projection.
 Unknown, malformed, unexposed, and unauthorized tool-version keys all return the
 same `404 tool_not_found` response without revealing which condition occurred.
 
+`POST /v1/tool-calls` accepts only `tool_id`, optional exact `version`, and
+`arguments`; governance identity, destinations, credentials, and retry overrides
+are rejected. `Idempotency-Key` is required and is bound to the authenticated
+tenant and run. The application resolves an exposed immutable version (or the
+tenant's configured default once), schema-validates and canonically normalizes
+arguments, derives the trusted resource projection, and atomically acquires the
+logical invocation before requesting authorization. It durably records every
+well-formed allow or deny decision before acting on it. Credentials are resolved
+only after a recorded allow, and execution is possible only through the connector
+port with canonical arguments and the trusted projection. A matching replay
+returns the existing invocation; any tool-version or argument-digest mismatch is
+`409 replay_conflict` and cannot reach authorization or execution.
+Connector content remains undisclosed in `post_tool` until output-schema and
+mandatory post-tool controls safely finalize it.
+
 Errors use `application/problem+json` per RFC 9457 with stable `code` and opaque
 correlation ID. Details never include arguments, provider payloads, tokens, secret
 references, policy internals, or existence across tenant boundaries. `202` is an
