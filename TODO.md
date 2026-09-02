@@ -109,7 +109,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 
 ## Phase 4 — Tool catalog and canonical discovery/invocation API
 
-- [ ] API-001 Implement domain validation for tool IDs, semantic/monotonic versioning policy as selected, immutable published versions, enabled/disabled state, trusted risk metadata, connector-operation binding, retry class, approval class, open-world classification, resource projection, and limits.
+- [x] API-001 Implement domain validation for tool IDs, semantic/monotonic versioning policy as selected, immutable published versions, enabled/disabled state, trusted risk metadata, connector-operation binding, retry class, approval class, open-world classification, resource projection, and limits. — completed 2026-09-02, commit f64df93, evidence: `go test -count=1 ./internal/domain`; `go vet ./internal/domain`; `make test`
 - [ ] API-002 Implement JSON Schema input/output validation with bounded compilation/cache behavior, deterministic errors, recursion/size safeguards, and tests for malformed/hostile schemas.
 - [ ] API-003 Implement tool publication validation so a version cannot be published without a connector operation, credential-binding selector, retry semantics, required resource projection, metering semantics, request/result limits, and reviewed descriptions.
 - [ ] API-004 Implement immutable tool-version persistence and reject direct mutation of security-relevant fields after publication; changes require a new version.
