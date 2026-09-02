@@ -14,6 +14,13 @@ limits, and cancellation. `Idempotency-Key` is the logical `tool_call_id` scoped
 trusted tenant/run. Pagination cursors are opaque, integrity protected, bounded,
 query-bound, and expiring. List ordering is stable and errors are enumeration safe.
 
+`GET /v1/tools` derives its complete discovery context from authenticated caller
+and workload identity, authorization-filters the tenant exposure set before
+pagination, and orders results by ascending `(tool_id, version)` UTF-8 byte value.
+The default page size is 50 and the maximum is 100. Continuation cursors bind the
+governed identity and effective page size, and a malformed, expired, tampered, or
+rebound cursor returns `invalid_arguments` without exposing catalog contents.
+
 Errors use `application/problem+json` per RFC 9457 with stable `code` and opaque
 correlation ID. Details never include arguments, provider payloads, tokens, secret
 references, policy internals, or existence across tenant boundaries. `202` is an

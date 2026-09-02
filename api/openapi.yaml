@@ -37,6 +37,22 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ToolPage'}
+              examples:
+                first_page:
+                  summary: Stable first page example
+                  value:
+                    items:
+                      - tool_id: github.pull.comment
+                        version: 1.0.0
+                        description: Add a reviewed comment to a pull request.
+                        input_schema: {type: object, required: [repository, pull_number, body]}
+                        output_schema: {type: object, required: [comment_id]}
+                        risk: bounded_write
+                        side_effect: true
+                        retry_class: downstream_idempotency
+                        approval: policy
+                        open_world_result: false
+                    next_cursor: eyJ2IjoxLCJvcGFxdWUiOiJleGFtcGxlIn0.example-signature
         '400': {$ref: '#/components/responses/Problem'}
         default: {$ref: '#/components/responses/Problem'}
   /v1/tools/{tool_id}:
@@ -170,6 +186,7 @@ components:
     Cursor:
       name: cursor
       in: query
+      description: Opaque, integrity-protected, context-bound, expiring continuation cursor.
       schema: {type: string, maxLength: 2048}
     Limit:
       name: limit
@@ -204,7 +221,7 @@ components:
     Tool:
       type: object
       additionalProperties: false
-      required: [tool_id, version, description, input_schema, output_schema, risk, side_effect, retry_class]
+      required: [tool_id, version, description, input_schema, output_schema, risk, side_effect, retry_class, approval, open_world_result]
       properties:
         tool_id: {type: string}
         version: {type: string}

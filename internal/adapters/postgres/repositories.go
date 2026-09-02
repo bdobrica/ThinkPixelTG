@@ -96,7 +96,8 @@ func (r ToolCatalogRepository) ListExposedForDiscovery(ctx context.Context) ([]p
 	const query = `SELECT v.tool_id, v.version, v.definition, v.definition_digest
 		FROM tenant_tool_exposures e JOIN tool_versions v
 		ON v.tool_id = e.tool_id AND v.version = e.version
-		WHERE e.tenant_id = $1 AND e.enabled AND v.state = 'published'`
+		WHERE e.tenant_id = $1 AND e.enabled AND v.state = 'published'
+		ORDER BY v.tool_id ASC, v.version ASC`
 	rows, err := r.db.Query(ctx, query, r.tenantID)
 	if err != nil {
 		return nil, repositoryError("list exposed tool versions", err)

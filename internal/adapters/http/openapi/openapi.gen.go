@@ -38,14 +38,14 @@ type Problem struct {
 
 // PublishToolVersion defines model for PublishToolVersion.
 type PublishToolVersion struct {
-	Approval                  interface{}            `json:"approval,omitempty"`
+	Approval                  interface{}            `json:"approval"`
 	ConnectorOperation        string                 `json:"connector_operation"`
 	CredentialBindingSelector map[string]interface{} `json:"credential_binding_selector"`
 	Description               string                 `json:"description"`
 	InputSchema               map[string]interface{} `json:"input_schema"`
 	Limits                    map[string]interface{} `json:"limits"`
 	Metering                  map[string]interface{} `json:"metering"`
-	OpenWorldResult           *bool                  `json:"open_world_result,omitempty"`
+	OpenWorldResult           bool                   `json:"open_world_result"`
 	OutputSchema              map[string]interface{} `json:"output_schema"`
 	ResourceProjection        map[string]interface{} `json:"resource_projection"`
 	RetryClass                interface{}            `json:"retry_class"`
@@ -65,10 +65,10 @@ type TenantToolExposure struct {
 
 // Tool defines model for Tool.
 type Tool struct {
-	Approval        interface{}            `json:"approval,omitempty"`
+	Approval        interface{}            `json:"approval"`
 	Description     string                 `json:"description"`
 	InputSchema     map[string]interface{} `json:"input_schema"`
-	OpenWorldResult *bool                  `json:"open_world_result,omitempty"`
+	OpenWorldResult bool                   `json:"open_world_result"`
 	OutputSchema    map[string]interface{} `json:"output_schema"`
 	RetryClass      interface{}            `json:"retry_class"`
 	Risk            interface{}            `json:"risk"`
@@ -119,6 +119,7 @@ type CreateToolCallParams struct {
 
 // ListToolsParams defines parameters for ListTools.
 type ListToolsParams struct {
+	// Cursor Opaque, integrity-protected, context-bound, expiring continuation cursor.
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
