@@ -22,6 +22,7 @@ import (
 const (
 	ConnectorType = "github"
 	PullGet       = "pull.get"
+	PullComment   = "pull.comment"
 	maximumOwner  = 39
 	maximumRepo   = 100
 )
