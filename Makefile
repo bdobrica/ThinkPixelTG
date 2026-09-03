@@ -16,7 +16,7 @@ export TMPDIR := $(PROJECT_TMP)
 
 .PHONY: prepare tools generate generate-check fmt fmt-check lint vet test test-race \
 	test-integration test-e2e test-security test-mcp-conformance openapi-check \
-	test-phase2 test-phase3 test-phase4 migration-test dependency-check license-check vuln-check build image container-smoke \
+	test-phase2 test-phase3 test-phase4 test-phase4-e2e migration-test dependency-check license-check vuln-check build image container-smoke \
 	verify verify-phase0 compose-up compose-down compose-clean clean
 
 prepare:
@@ -24,7 +24,7 @@ prepare:
 
 tools generate fmt lint vet test test-race test-integration test-e2e \
 	test-security test-mcp-conformance openapi-check migration-test \
-	test-phase2 test-phase3 test-phase4 dependency-check license-check vuln-check build image: | prepare
+	test-phase2 test-phase3 test-phase4 test-phase4-e2e dependency-check license-check vuln-check build image: | prepare
 
 tools:
 	$(GO) -C tools/golangci-lint mod download
@@ -77,6 +77,12 @@ test-phase3:
 test-phase4:
 	$(GO) test ./internal/adapters/http ./internal/app ./internal/adapters/postgres -count=1 \
 		-run 'Test(OpenAPIConformance|TenantIsolation|TenantScoped|BindsTenant|Replay|MalformedArguments|TimeoutAndCancellation|DeterministicDiscovery)'
+
+test-phase4-e2e:
+	@test -n "$(TPTG_TEST_DATABASE_URL)" || \
+		(echo "TPTG_TEST_DATABASE_URL is required for the Phase 4 end-to-end evidence suite"; exit 1)
+	$(GO) test -tags='integration e2e' ./internal/adapters/postgres -count=1 \
+		-run 'TestPhase4GovernedMockInvocationE2E'
 
 test-e2e:
 	$(GO) test -tags=e2e $(GO_PACKAGES) -run 'E2E'

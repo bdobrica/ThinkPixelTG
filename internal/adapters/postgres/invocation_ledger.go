@@ -15,6 +15,7 @@ import (
 type InvocationLedger struct {
 	acquirer      *LogicalInvocationAcquirer
 	decisions     DecisionRepository
+	protected     *ProtectedMutationExecutor
 	ownerID       string
 	lease         time.Duration
 	maxRecoveries int
@@ -25,7 +26,11 @@ func NewInvocationLedger(acquirer *LogicalInvocationAcquirer, decisions Decision
 	if acquirer == nil || decisions.db == nil || ownerID == "" || lease <= 0 || lease > 5*time.Minute || maxRecoveries < 0 || maxRecoveries > 10 || clock == nil {
 		return nil, errors.New("invocation ledger configuration is invalid")
 	}
-	return &InvocationLedger{acquirer: acquirer, decisions: decisions, ownerID: ownerID, lease: lease, maxRecoveries: maxRecoveries, clock: clock}, nil
+	protected, err := NewProtectedMutationExecutor(acquirer.acquirerDatabase(), acquirer.tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return &InvocationLedger{acquirer: acquirer, decisions: decisions, protected: protected, ownerID: ownerID, lease: lease, maxRecoveries: maxRecoveries, clock: clock}, nil
 }
 
 func (ledger *InvocationLedger) Acquire(ctx context.Context, identity ports.InvocationIdentity, value ports.LogicalInvocation) (ports.InvocationAcquisition, error) {
@@ -60,7 +65,26 @@ func (ledger *InvocationLedger) RecordAuthorization(ctx context.Context, identit
 		return domain.NewError(domain.CodeInternal, "authorization constraints could not be persisted", err)
 	}
 	checkpoint := decision.RevocationCheckpoint
-	return ledger.decisions.RecordAuthorization(ctx, AuthorizationDecision{InvocationID: invocationID, DecisionID: decision.DecisionID, ContextDigest: contextDigest[:], ArgumentDigest: argumentDigest[:], ResourceDigest: resourceDigest[:], Outcome: string(decision.Outcome), PolicyRef: decision.PolicyID + "@" + decision.PolicyVersion, Constraints: constraints, IssuedAt: decision.IssuedAt, ExpiresAt: decision.ExpiresAt, RecordedAt: at, RevocationCheckpoint: &checkpoint})
+	record := AuthorizationDecision{InvocationID: invocationID, DecisionID: decision.DecisionID, ContextDigest: contextDigest[:], ArgumentDigest: argumentDigest[:], ResourceDigest: resourceDigest[:], Outcome: string(decision.Outcome), PolicyRef: decision.PolicyID + "@" + decision.PolicyVersion, Constraints: constraints, IssuedAt: decision.IssuedAt, ExpiresAt: decision.ExpiresAt, RecordedAt: at, RevocationCheckpoint: &checkpoint}
+	eventID, err := domain.NewUUIDv7(ledger.clock)
+	if err != nil {
+		return domain.NewError(domain.CodeInternal, "authorization evidence identity could not be created", err)
+	}
+	outboxID, err := domain.NewUUIDv7(ledger.clock)
+	if err != nil {
+		return domain.NewError(domain.CodeInternal, "authorization publication identity could not be created", err)
+	}
+	correlation, _ := json.Marshal(map[string]string{"invocation_id": invocationID, "decision_id": decision.DecisionID, "run_id": identity.RunID})
+	payload, _ := json.Marshal(map[string]string{"event_id": eventID.String(), "event_type": "authorization.decision", "invocation_id": invocationID, "decision_id": decision.DecisionID, "outcome": string(decision.Outcome)})
+	digest := domain.DigestBytes(payload)
+	invocation := invocationID
+	records := ProtectedMutationRecords{
+		Audit:  AuditEvent{EventID: eventID.String(), InvocationID: &invocation, EventType: "authorization.decision", EvidenceProfile: "tg.evidence/v1alpha1", ActorClass: "workload", ActorRef: &identity.WorkloadID, Outcome: string(decision.Outcome), Correlation: correlation, SafePayload: payload, PayloadDigest: digest[:], OccurredAt: at, RecordedAt: at},
+		Outbox: []OutboxMessage{{ID: outboxID.String(), EventID: eventID.String(), Topic: "evidence", EventType: "authorization.decision", SafePayload: payload, PayloadDigest: digest[:], CreatedAt: at, AvailableAt: at}},
+	}
+	return ledger.protected.Execute(ctx, records, func(txCtx context.Context, repositories *TenantRepositories) error {
+		return repositories.Decisions.RecordAuthorization(txCtx, record)
+	})
 }
 
 func (ledger *InvocationLedger) GetToolCall(ctx context.Context, identity ports.InvocationIdentity, toolCallID string) (ports.ToolCallView, error) {

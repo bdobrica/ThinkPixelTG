@@ -78,6 +78,15 @@ type LogicalInvocationAcquirer struct {
 	tenantID   string
 }
 
+func (a *LogicalInvocationAcquirer) acquirerDatabase() AcquisitionDatabase {
+	return acquisitionDatabase{DBTX: a.db, Beginner: a.transactor.beginner}
+}
+
+type acquisitionDatabase struct {
+	DBTX
+	Beginner
+}
+
 type AcquisitionDatabase interface {
 	Beginner
 	DBTX
