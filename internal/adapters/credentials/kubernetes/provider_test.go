@@ -12,6 +12,7 @@ import (
 
 	"github.com/bdobrica/ThinkPixelTG/internal/config"
 	"github.com/bdobrica/ThinkPixelTG/internal/domain"
+	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 )
 
 type fixedClock struct{ now time.Time }
@@ -28,7 +29,7 @@ func TestProviderResolvesAllowlistedProjectedTokenInProduction(t *testing.T) {
 		}
 		return loaded, nil
 	})
-	capability, err := provider.Resolve(t.Context(), projectedBinding(t, "projected:"+path, domain.CapabilityAPIToken, domain.DelegationNone, true), "governed-subject")
+	capability, err := provider.Resolve(t.Context(), projectedBinding(t, "projected:"+path, domain.CapabilityAPIToken, domain.DelegationNone, true), providerContext("governed-subject"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestProviderFailsClosedForUntrustedClaimsAndBindings(t *testing.T) {
 			}
 			provider := newTestProvider(t, now, allowedPath, func(string) ([]byte, error) { return token, nil })
 			binding := projectedBinding(t, "projected:"+test.path, test.kind, test.delegation, test.enabled)
-			if _, err := provider.Resolve(t.Context(), binding, test.subject); err == nil {
+			if _, err := provider.Resolve(t.Context(), binding, providerContext(test.subject)); err == nil {
 				t.Fatal("unsafe projected credential accepted")
 			}
 		})
@@ -114,14 +115,14 @@ func TestProviderConfigurationAndIOErrorsAreSafe(t *testing.T) {
 
 	canary := "SYNTHETIC_KUBERNETES_IO_CANARY"
 	provider := newTestProvider(t, now, path, func(string) ([]byte, error) { return nil, errors.New(canary) })
-	_, err := provider.Resolve(t.Context(), projectedBinding(t, "projected:"+path, domain.CapabilityAPIToken, domain.DelegationNone, true), "subject")
+	_, err := provider.Resolve(t.Context(), projectedBinding(t, "projected:"+path, domain.CapabilityAPIToken, domain.DelegationNone, true), providerContext("subject"))
 	if err == nil || strings.Contains(err.Error(), canary) || strings.Contains(err.Error(), path) {
 		t.Fatalf("unsafe provider error = %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := provider.Resolve(ctx, projectedBinding(t, "projected:"+path, domain.CapabilityAPIToken, domain.DelegationNone, true), "subject"); err == nil {
+	if _, err := provider.Resolve(ctx, projectedBinding(t, "projected:"+path, domain.CapabilityAPIToken, domain.DelegationNone, true), providerContext("subject")); err == nil {
 		t.Fatal("cancelled resolution accepted")
 	}
 }
@@ -178,4 +179,8 @@ func projectedToken(t *testing.T, claims map[string]any) []byte {
 func mutateClaims(claims map[string]any, key string, value any) map[string]any {
 	claims[key] = value
 	return claims
+}
+
+func providerContext(subject string) ports.CredentialProviderContext {
+	return ports.CredentialProviderContext{Subject: subject, RunID: "run-1"}
 }

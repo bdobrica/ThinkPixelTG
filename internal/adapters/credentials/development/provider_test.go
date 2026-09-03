@@ -12,6 +12,7 @@ import (
 
 	"github.com/bdobrica/ThinkPixelTG/internal/config"
 	"github.com/bdobrica/ThinkPixelTG/internal/domain"
+	"github.com/bdobrica/ThinkPixelTG/internal/ports"
 )
 
 type fixedClock struct{ now time.Time }
@@ -41,7 +42,7 @@ func TestProviderResolvesEnvironmentIntoOpaqueCapability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capability, err := provider.Resolve(t.Context(), developmentBinding(t, "env:TPTG_DEV_GITHUB_TOKEN", 2*time.Minute), "subject-1")
+	capability, err := provider.Resolve(t.Context(), developmentBinding(t, "env:TPTG_DEV_GITHUB_TOKEN", 2*time.Minute), providerContext("subject-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestProviderResolvesBoundedFileAndErasesLoadedBuffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capability, err := provider.Resolve(t.Context(), developmentBinding(t, "file:"+path, 0), "subject-1")
+	capability, err := provider.Resolve(t.Context(), developmentBinding(t, "file:"+path, 0), providerContext("subject-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +101,7 @@ func TestDefaultFileReaderIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.Resolve(t.Context(), developmentBinding(t, "file:"+path, 0), "subject-1"); err == nil {
+	if _, err := provider.Resolve(t.Context(), developmentBinding(t, "file:"+path, 0), providerContext("subject-1")); err == nil {
 		t.Fatal("oversized file accepted")
 	}
 }
@@ -126,7 +127,7 @@ func TestProviderFailsClosedWithoutLeakingSourceErrors(t *testing.T) {
 		{"nil context", "env:TPTG_DEV_MISSING", "subject", nil},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, resolveErr := provider.Resolve(test.ctx, developmentBinding(t, test.reference, 0), test.subject)
+			_, resolveErr := provider.Resolve(test.ctx, developmentBinding(t, test.reference, 0), providerContext(test.subject))
 			if resolveErr == nil || strings.Contains(resolveErr.Error(), canary) || strings.Contains(resolveErr.Error(), "secret") {
 				t.Fatalf("unsafe error = %v", resolveErr)
 			}
@@ -162,4 +163,8 @@ func cancelledContext() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	return ctx
+}
+
+func providerContext(subject string) ports.CredentialProviderContext {
+	return ports.CredentialProviderContext{Subject: subject, RunID: "run-1"}
 }

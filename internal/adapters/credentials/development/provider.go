@@ -62,7 +62,7 @@ func New(providerConfig Config) (*Provider, error) {
 	return &Provider{clock: providerConfig.Clock, lookupEnv: providerConfig.LookupEnv, readFile: providerConfig.ReadFile, defaultTTL: providerConfig.DefaultTTL}, nil
 }
 
-func (provider *Provider) Resolve(ctx context.Context, binding domain.CredentialBinding, governedSubject string) (ports.CredentialCapability, error) {
+func (provider *Provider) Resolve(ctx context.Context, binding domain.CredentialBinding, governed ports.CredentialProviderContext) (ports.CredentialCapability, error) {
 	if provider == nil || ctx == nil {
 		return nil, errors.New("development credential provider is unavailable")
 	}
@@ -73,7 +73,7 @@ func (provider *Provider) Resolve(ctx context.Context, binding domain.Credential
 	if !definition.Enabled || definition.Provider.ProviderType != "development" {
 		return nil, errors.New("development credential binding is invalid")
 	}
-	if definition.Delegation.Mode != domain.DelegationNone || governedSubject == "" || len(governedSubject) > 512 || strings.TrimSpace(governedSubject) != governedSubject || strings.ContainsAny(governedSubject, "\x00\r\n") {
+	if definition.Delegation.Mode != domain.DelegationNone || !validGovernedValue(governed.Subject) || !validGovernedValue(governed.RunID) {
 		return nil, errors.New("development credential subject policy is invalid")
 	}
 
@@ -97,6 +97,10 @@ func (provider *Provider) Resolve(ctx context.Context, binding domain.Credential
 		return nil, errors.New("development credential capability is invalid")
 	}
 	return capability, nil
+}
+
+func validGovernedValue(value string) bool {
+	return value != "" && len(value) <= 512 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r\n")
 }
 
 func (provider *Provider) load(reference string) ([]byte, error) {

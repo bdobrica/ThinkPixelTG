@@ -84,7 +84,7 @@ func New(providerConfig Config) (*Provider, error) {
 	return &Provider{clock: providerConfig.Clock, allowedPaths: allowedPaths, trustedIssuers: trustedIssuers, readFile: providerConfig.ReadFile, maximumLifetime: providerConfig.MaximumTokenLifetime, clockSkew: providerConfig.ClockSkew}, nil
 }
 
-func (provider *Provider) Resolve(ctx context.Context, binding domain.CredentialBinding, governedSubject string) (ports.CredentialCapability, error) {
+func (provider *Provider) Resolve(ctx context.Context, binding domain.CredentialBinding, governed ports.CredentialProviderContext) (ports.CredentialCapability, error) {
 	if provider == nil || ctx == nil {
 		return nil, errors.New("kubernetes projected credential provider is unavailable")
 	}
@@ -95,7 +95,7 @@ func (provider *Provider) Resolve(ctx context.Context, binding domain.Credential
 	if !definition.Enabled || definition.Provider.ProviderType != "kubernetes_projected" || definition.Provider.Capability != domain.CapabilityAPIToken {
 		return nil, errors.New("kubernetes projected credential binding is invalid")
 	}
-	if definition.Delegation.Mode != domain.DelegationNone || !safeText(governedSubject, 512) {
+	if definition.Delegation.Mode != domain.DelegationNone || !safeText(governed.Subject, 512) || !safeText(governed.RunID, 512) {
 		return nil, errors.New("kubernetes projected credential subject policy is invalid")
 	}
 	path, ok := strings.CutPrefix(definition.Provider.ProviderRef, "projected:")
