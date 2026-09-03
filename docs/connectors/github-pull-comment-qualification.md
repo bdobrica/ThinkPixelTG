@@ -43,3 +43,19 @@ comment ID, which this connector does not implement.
 
 Hermetic tests cover pre-send validation, secret-header lifetime, confirmed
 success, provider-response minimization, and ambiguous transport/`5xx` outcomes.
+
+## Isolated canary qualification
+
+The CRED-014 qualification uses the real `github.pull.get` and
+`github.pull.comment` adapters against an in-process provider double. A synthetic
+credential canary exists only inside the credential capability and the provider
+request's temporary authorization header. The harness-visible application result
+and error are inspected for the canary, and the connector removes the header as
+soon as the provider call returns.
+
+The qualification also proves that an explicit authorization denial records its
+decision without invoking the credential broker or connector. For allowed read
+and write calls, it captures the application-assigned invocation ID at both the
+authorization ledger and connector boundary and requires an exact match. This
+correlates the reference write to its governed invocation without placing a
+credential, request body, or provider payload in evidence.
