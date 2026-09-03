@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bdobrica/ThinkPixelTG/internal/connectors/downstreamhttp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
@@ -43,15 +44,17 @@ type BootstrapConfig struct {
 }
 
 type Observability struct {
-	Registry       *prometheus.Registry
-	MetricsHandler http.Handler
-	TracerProvider trace.TracerProvider
-	Propagator     propagation.TextMapPropagator
-	Requests       *prometheus.CounterVec
-	Duration       *prometheus.HistogramVec
-	shutdown       func(context.Context) error
-	once           sync.Once
-	shutdownErr    error
+	Registry           *prometheus.Registry
+	MetricsHandler     http.Handler
+	TracerProvider     trace.TracerProvider
+	Propagator         propagation.TextMapPropagator
+	Requests           *prometheus.CounterVec
+	Duration           *prometheus.HistogramVec
+	DownstreamRequests *prometheus.CounterVec
+	DownstreamDuration *prometheus.HistogramVec
+	shutdown           func(context.Context) error
+	once               sync.Once
+	shutdownErr        error
 }
 
 func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*Observability, error) {
@@ -66,11 +69,24 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*Observability, error)
 		Namespace: "thinkpixeltg", Name: "http_request_duration_seconds", Help: "HTTP request duration by stable route.",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "route"})
+	downstreamRequests := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "thinkpixeltg", Name: "downstream_http_requests_total", Help: "Completed downstream HTTP requests by compiled operation and bounded outcome.",
+	}, []string{"operation", "method", "outcome", "status_class"})
+	downstreamDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "thinkpixeltg", Name: "downstream_http_request_duration_seconds", Help: "Downstream HTTP request duration by compiled operation and bounded outcome.",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"operation", "method", "outcome"})
 	if err := registry.Register(requests); err != nil {
 		return nil, fmt.Errorf("register request metric: %w", err)
 	}
 	if err := registry.Register(duration); err != nil {
 		return nil, fmt.Errorf("register duration metric: %w", err)
+	}
+	if err := registry.Register(downstreamRequests); err != nil {
+		return nil, fmt.Errorf("register downstream request metric: %w", err)
+	}
+	if err := registry.Register(downstreamDuration); err != nil {
+		return nil, fmt.Errorf("register downstream duration metric: %w", err)
 	}
 
 	provider, shutdown, err := traceProvider(ctx, cfg)
@@ -83,7 +99,8 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*Observability, error)
 
 	return &Observability{
 		Registry: registry, MetricsHandler: promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
-		TracerProvider: provider, Propagator: propagator, Requests: requests, Duration: duration, shutdown: shutdown,
+		TracerProvider: provider, Propagator: propagator, Requests: requests, Duration: duration,
+		DownstreamRequests: downstreamRequests, DownstreamDuration: downstreamDuration, shutdown: shutdown,
 	}, nil
 }
 
@@ -167,4 +184,11 @@ func (observability *Observability) ObserveRequest(method, route string, status 
 	route = StableRoute(route)
 	observability.Requests.WithLabelValues(method, route, StatusClass(status)).Inc()
 	observability.Duration.WithLabelValues(method, route).Observe(elapsed.Seconds())
+}
+
+// ObserveDownstreamHTTP implements downstreamhttp.Observer. The transport has
+// already reduced these fields to compiled, bounded dimensions.
+func (observability *Observability) ObserveDownstreamHTTP(_ context.Context, event downstreamhttp.Event) {
+	observability.DownstreamRequests.WithLabelValues(event.Operation, event.Method, event.Outcome, event.StatusClass).Inc()
+	observability.DownstreamDuration.WithLabelValues(event.Operation, event.Method, event.Outcome).Observe(event.Duration.Seconds())
 }

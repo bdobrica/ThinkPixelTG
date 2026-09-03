@@ -6,7 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bdobrica/ThinkPixelTG/internal/connectors/downstreamhttp"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -16,9 +18,10 @@ func TestBootstrapNoopMetricsAndShutdown(t *testing.T) {
 		t.Fatal(err)
 	}
 	observability.ObserveRequest("GET", "/livez", 200, 1)
+	observability.ObserveDownstreamHTTP(context.Background(), downstreamhttp.Event{Operation: "github.pull_read", Method: "GET", Outcome: "response", StatusClass: "2xx", Duration: time.Millisecond})
 	response := httptest.NewRecorder()
 	observability.MetricsHandler.ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
-	if response.Code != 200 || !strings.Contains(response.Body.String(), "thinkpixeltg_http_requests_total") {
+	if response.Code != 200 || !strings.Contains(response.Body.String(), "thinkpixeltg_http_requests_total") || !strings.Contains(response.Body.String(), `thinkpixeltg_downstream_http_requests_total{method="GET",operation="github.pull_read",outcome="response",status_class="2xx"} 1`) {
 		t.Fatalf("metrics response: %d %s", response.Code, response.Body.String())
 	}
 	if err := observability.Shutdown(context.Background()); err != nil {
