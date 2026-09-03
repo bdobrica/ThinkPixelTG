@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func TestToolCallServiceRunsGovernedSequenceAndCanonicalConnectorInput(t *testin
 	}
 }
 
-func TestToolCallServiceNeverReachesAuthorityOrConnectorBeforeValidationAndAcquisition(t *testing.T) {
+func TestReplayConflictAndMalformedArgumentsNeverReachAuthorityOrConnector(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		mutate func(*ToolCallRequest)
@@ -106,6 +107,101 @@ func TestToolCallServicePersistsDenialBeforeStopping(t *testing.T) {
 	}
 	if events[len(events)-1] != "record" {
 		t.Fatalf("events = %v", events)
+	}
+}
+
+func TestReplayReturnsExistingInvocationWithoutRepeatingGovernedWork(t *testing.T) {
+	events := []string{}
+	ledger := &invocationLedgerFake{events: &events, kind: ports.InvocationExisting}
+	service := newInvocationTestService(t, invocationTestTool(t), ledger,
+		authorizerFunc(func(context.Context, ports.AuthorizationRequest) (ports.AuthorizationDecision, error) {
+			t.Fatal("authorization reached on replay")
+			return ports.AuthorizationDecision{}, nil
+		}),
+		credentialBrokerFake(func(context.Context, ports.InvocationIdentity, domain.ToolVersionDefinition, ports.AuthorizationDecision) (ports.CredentialCapability, error) {
+			t.Fatal("credential broker reached on replay")
+			return nil, nil
+		}),
+		connectorFake(func(context.Context, ports.ConnectorRequest) (ports.ConnectorResult, error) {
+			t.Fatal("connector reached on replay")
+			return ports.ConnectorResult{}, nil
+		}),
+	)
+
+	result, err := service.Create(t.Context(), invocationTestRequest())
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if !result.Existing || result.Invocation.ToolCallID != invocationTestRequest().ToolCallID {
+		t.Fatalf("replay result = %#v", result)
+	}
+	if want := []string{"resolve", "acquire"}; len(events) != len(want) || events[0] != want[0] || events[1] != want[1] {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+}
+
+func TestTimeoutAndCancellationReachConnectorAndReleaseCredential(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		parent func() (context.Context, context.CancelFunc)
+		limit  time.Duration
+		want   error
+	}{
+		{
+			name: "tool deadline",
+			parent: func() (context.Context, context.CancelFunc) {
+				return context.WithCancel(context.Background())
+			},
+			limit: 5 * time.Millisecond,
+			want:  context.DeadlineExceeded,
+		},
+		{
+			name: "caller cancellation",
+			parent: func() (context.Context, context.CancelFunc) {
+				return context.WithCancel(context.Background())
+			},
+			limit: time.Second,
+			want:  context.Canceled,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			events := []string{}
+			tool := invocationTestTool(t)
+			tool.Limits.Deadline = test.limit
+			ledger := &invocationLedgerFake{events: &events}
+			lease := &credentialFake{events: &events}
+			entered := make(chan struct{})
+			service := newInvocationTestService(t, tool, ledger,
+				authorizerFunc(func(_ context.Context, request ports.AuthorizationRequest) (ports.AuthorizationDecision, error) {
+					events = append(events, "authorize")
+					return allowedDecision(request, time.Unix(100, 0)), nil
+				}),
+				credentialBrokerFake(func(context.Context, ports.InvocationIdentity, domain.ToolVersionDefinition, ports.AuthorizationDecision) (ports.CredentialCapability, error) {
+					events = append(events, "credential")
+					return lease, nil
+				}),
+				connectorFake(func(ctx context.Context, _ ports.ConnectorRequest) (ports.ConnectorResult, error) {
+					close(entered)
+					<-ctx.Done()
+					return ports.ConnectorResult{}, ctx.Err()
+				}),
+			)
+			ctx, cancel := test.parent()
+			defer cancel()
+			if errors.Is(test.want, context.Canceled) {
+				go func() {
+					<-entered
+					cancel()
+				}()
+			}
+			_, err := service.Create(ctx, invocationTestRequest())
+			if err == nil || !errors.Is(err, test.want) {
+				t.Fatalf("Create() error = %v, want wrapping %v", err, test.want)
+			}
+			if lease.releases != 1 {
+				t.Fatalf("credential releases = %d", lease.releases)
+			}
+		})
 	}
 }
 

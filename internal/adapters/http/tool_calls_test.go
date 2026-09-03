@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bdobrica/ThinkPixelTG/internal/adapters/http/openapi"
 	"github.com/bdobrica/ThinkPixelTG/internal/app"
 	"github.com/bdobrica/ThinkPixelTG/internal/domain"
 	"github.com/bdobrica/ThinkPixelTG/internal/ports"
@@ -110,6 +111,66 @@ func TestCreateToolCallRejectsUntrustedShapeBeforeApplication(t *testing.T) {
 			handler.ServeHTTP(res, req)
 			if res.Code < 400 {
 				t.Fatalf("status=%d", res.Code)
+			}
+		})
+	}
+}
+
+func TestMalformedArgumentsConformToPublicProblemContract(t *testing.T) {
+	creator := toolCallCreatorFunc(func(context.Context, app.ToolCallRequest) (app.ToolCallResult, error) {
+		t.Fatal("application reached")
+		return app.ToolCallResult{}, nil
+	})
+	handler, _ := NewToolCallHandler(ToolCallOptions{Service: creator, Identity: func(context.Context) (ports.InvocationIdentity, error) {
+		return ports.InvocationIdentity{TenantID: "tenant"}, nil
+	}})
+	for _, body := range []string{
+		``,
+		`null`,
+		`{"tool_id":"github.pull.comment"}`,
+		`{"tool_id":"github.pull.comment","arguments":{"count":01}}`,
+		`{"tool_id":"github.pull.comment","arguments":{},"arguments":{}}`,
+		`{"tool_id":"github.pull.comment","arguments":{}} trailing`,
+	} {
+		request := httptest.NewRequest(http.MethodPost, "/v1/tool-calls", jsonReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Idempotency-Key", "call-0001")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		var problem openapi.Problem
+		if response.Code != http.StatusBadRequest || response.Header().Get("Content-Type") != "application/problem+json" || json.Unmarshal(response.Body.Bytes(), &problem) != nil || problem.Code != "invalid_arguments" {
+			t.Fatalf("body %q response = %d %#v %s", body, response.Code, response.Header(), response.Body.String())
+		}
+	}
+}
+
+func TestOpenAPIConformanceToolCallSuccessAndReplayResponses(t *testing.T) {
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name     string
+		existing bool
+		status   int
+	}{
+		{name: "accepted", status: http.StatusAccepted},
+		{name: "matching replay", existing: true, status: http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			handler, _ := NewToolCallHandler(ToolCallOptions{Service: toolCallCreatorFunc(func(context.Context, app.ToolCallRequest) (app.ToolCallResult, error) {
+				return app.ToolCallResult{Existing: test.existing, State: "post_tool", Invocation: ports.LogicalInvocation{ToolCallID: "call-0001", ToolID: "github.pull.comment", ToolVersion: "1.0.0", CreatedAt: now, UpdatedAt: now}}, nil
+			}), Identity: func(context.Context) (ports.InvocationIdentity, error) {
+				return ports.InvocationIdentity{TenantID: "tenant"}, nil
+			}})
+			request := httptest.NewRequest(http.MethodPost, "/v1/tool-calls", jsonReader(`{"tool_id":"github.pull.comment","arguments":{}}`))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Idempotency-Key", "call-0001")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			var document openapi.ToolCall
+			if response.Code != test.status || response.Header().Get("Content-Type") != "application/json" || json.Unmarshal(response.Body.Bytes(), &document) != nil {
+				t.Fatalf("response = %d %#v %s", response.Code, response.Header(), response.Body.String())
+			}
+			if document.ToolCallId != "call-0001" || document.ToolId != "github.pull.comment" || document.Version != "1.0.0" || document.State != "post_tool" {
+				t.Fatalf("OpenAPI tool call = %#v", document)
 			}
 		})
 	}

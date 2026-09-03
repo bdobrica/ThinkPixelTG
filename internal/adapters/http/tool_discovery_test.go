@@ -52,6 +52,29 @@ func TestListToolsOrdersAndPaginatesAuthorizedResults(t *testing.T) {
 	}
 }
 
+func TestDeterministicDiscoveryProducesStableOpenAPIResponse(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	discovery := toolDiscoveryFunc(func(context.Context, ports.DiscoveryAuthorizationRequest) ([]ports.CatalogToolVersion, error) {
+		calls++
+		if calls%2 == 0 {
+			return []ports.CatalogToolVersion{discoveryCandidate("github.pull.comment", "1.0.0"), discoveryCandidate("slack.message.send", "2.0.0")}, nil
+		}
+		return []ports.CatalogToolVersion{discoveryCandidate("slack.message.send", "2.0.0"), discoveryCandidate("github.pull.comment", "1.0.0")}, nil
+	})
+	handler := newDiscoveryTestHandler(t, discovery, func() time.Time { return now }, discoveryTestIdentity)
+	first := performDiscoveryRequest(handler, "/v1/tools?limit=1")
+	second := performDiscoveryRequest(handler, "/v1/tools?limit=1")
+	if first.Code != http.StatusOK || second.Code != http.StatusOK || first.Body.String() != second.Body.String() {
+		t.Fatalf("responses differ: first=%d %s second=%d %s", first.Code, first.Body.String(), second.Code, second.Body.String())
+	}
+	var page openapi.ToolPage
+	if err := json.Unmarshal(first.Body.Bytes(), &page); err != nil || len(page.Items) != 1 || page.Items[0].ToolId != "github.pull.comment" || page.NextCursor == nil {
+		t.Fatalf("OpenAPI page = %#v, %v", page, err)
+	}
+}
+
 func TestListToolsRejectsInvalidBoundOrExpiredCursor(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 9, 2, 10, 0, 0, 0, time.UTC)

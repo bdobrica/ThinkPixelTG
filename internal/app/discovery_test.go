@@ -100,6 +100,43 @@ func TestDescribeRequiresExactAuthorizedVersion(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationUsesOnlyBoundCatalogCandidates(t *testing.T) {
+	t.Parallel()
+	tenantATool := ports.CatalogToolVersion{ToolID: "tenant.a.read", Version: "1.0.0"}
+	tenantBTool := ports.CatalogToolVersion{ToolID: "tenant.b.read", Version: "1.0.0"}
+	for _, test := range []struct {
+		name     string
+		identity ports.DiscoveryAuthorizationRequest
+		exposed  ports.CatalogToolVersion
+		hidden   ports.CatalogToolVersion
+	}{
+		{name: "tenant a", identity: discoveryRequest(), exposed: tenantATool, hidden: tenantBTool},
+		{name: "tenant b", identity: func() ports.DiscoveryAuthorizationRequest {
+			request := discoveryRequest()
+			request.TenantID = "019b0000-0000-7000-8000-000000000002"
+			return request
+		}(), exposed: tenantBTool, hidden: tenantATool},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, _ := NewDiscoveryService(
+				discoveryCatalogFunc(func(context.Context) ([]ports.CatalogToolVersion, error) {
+					return []ports.CatalogToolVersion{test.exposed}, nil
+				}),
+				discoveryAuthorizerFunc(func(_ context.Context, request ports.DiscoveryAuthorizationRequest) (ports.DiscoveryAuthorizationDecision, error) {
+					if request.TenantID != test.identity.TenantID || len(request.Candidates) != 1 || request.Candidates[0].ToolID != test.exposed.ToolID {
+						t.Fatalf("authorization request = %#v", request)
+					}
+					return ports.DiscoveryAuthorizationDecision{Allowed: request.Candidates}, nil
+				}),
+			)
+			visible, err := service.Discover(t.Context(), test.identity)
+			if err != nil || len(visible) != 1 || visible[0].ToolID != test.exposed.ToolID || visible[0].ToolID == test.hidden.ToolID {
+				t.Fatalf("Discover() = %#v, %v", visible, err)
+			}
+		})
+	}
+}
+
 func discoveryRequest() ports.DiscoveryAuthorizationRequest {
 	return ports.DiscoveryAuthorizationRequest{
 		TenantID: "019b0000-0000-7000-8000-000000000001", Subject: "subject-1",
