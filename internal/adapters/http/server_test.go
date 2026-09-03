@@ -213,3 +213,47 @@ func TestReadinessFailure(t *testing.T) {
 		t.Fatalf("response = %d %s", response.Code, response.Body.String())
 	}
 }
+
+func TestAdministrativeRoutesUseOnlySeparateAuthenticator(t *testing.T) {
+	ordinaryCalls, adminCalls, applicationCalls := 0, 0, 0
+	server := testServer(t, func(options *Options) {
+		options.Authenticator = func(ctx context.Context, _ *stdhttp.Request) (context.Context, error) {
+			ordinaryCalls++
+			return ctx, nil
+		}
+		options.AdminAuthenticator = func(ctx context.Context, _ *stdhttp.Request) (context.Context, error) { adminCalls++; return ctx, nil }
+		options.Application = stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, _ *stdhttp.Request) { applicationCalls++; writer.WriteHeader(204) })
+		options.AdminApplication = stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, _ *stdhttp.Request) { writer.WriteHeader(201) })
+	})
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, httptest.NewRequest(stdhttp.MethodPost, "/v1/admin/tool-versions", nil))
+	if response.Code != 201 || ordinaryCalls != 0 || adminCalls != 1 || applicationCalls != 0 {
+		t.Fatalf("status=%d ordinary=%d admin=%d application=%d", response.Code, ordinaryCalls, adminCalls, applicationCalls)
+	}
+}
+
+func TestAdministrativeRoutesFailClosedWithoutSeparateConfiguration(t *testing.T) {
+	ordinaryCalls := 0
+	server := testServer(t, func(options *Options) {
+		options.Authenticator = func(ctx context.Context, _ *stdhttp.Request) (context.Context, error) {
+			ordinaryCalls++
+			return ctx, nil
+		}
+	})
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, httptest.NewRequest(stdhttp.MethodPost, "/v1/admin/tool-versions", nil))
+	if response.Code != stdhttp.StatusUnauthorized || ordinaryCalls != 0 {
+		t.Fatalf("status=%d ordinary=%d body=%s", response.Code, ordinaryCalls, response.Body.String())
+	}
+}
+
+func TestAdminApplicationRequiresAdminAuthenticator(t *testing.T) {
+	observability, err := telemetry.Bootstrap(context.Background(), telemetry.BootstrapConfig{ServiceName: "test", TraceMode: telemetry.TraceNoop})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = New(Options{Config: config.Default().HTTP, Logger: telemetry.NewLogger(slog.NewTextHandler(io.Discard, nil)), Observability: observability, AdminApplication: stdhttp.NotFoundHandler()})
+	if err == nil {
+		t.Fatal("configured admin application accepted without admin authenticator")
+	}
+}

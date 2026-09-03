@@ -150,6 +150,8 @@ paths:
       tags: [Administration]
       summary: Publish an immutable tool version through separate admin authority.
       security: [{adminBearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -169,6 +171,8 @@ paths:
       tags: [Administration]
       summary: Set tenant exposure through separate admin authority.
       security: [{adminBearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -298,22 +302,80 @@ components:
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
     PublishToolVersion:
-      allOf:
-        - {$ref: '#/components/schemas/Tool'}
-        - type: object
-          required: [connector_operation, credential_binding_selector, resource_projection, limits, metering]
-          properties:
-            connector_operation: {type: string}
-            credential_binding_selector: {type: object}
-            resource_projection: {type: object}
-            limits: {type: object}
-            metering: {type: object}
+      type: object
+      additionalProperties: false
+      required: [tool_id, version, title, description, review_reference, input_schema, output_schema, risk, side_effect, retry_class, retry_qualification, approval, open_world_result, canonicalization_profile, connector, credential_binding_selector, resource_projection, limits, metering]
+      properties:
+            tool_id: {type: string, pattern: '^[a-z][a-z0-9]*(\.[a-z][a-z0-9_]*)+$', maxLength: 128}
+            version: {type: string}
+            description: {type: string, minLength: 1, maxLength: 4096}
+            input_schema: {type: object}
+            output_schema: {type: object}
+            risk: {enum: [read, bounded_write, consequential_write, privileged]}
+            side_effect: {type: boolean}
+            retry_class: {enum: [safe, downstream_idempotency, gateway_deduplicated, reconcile_before_retry, at_least_once_accepted, non_retryable]}
+            approval: {enum: [never, policy, always]}
+            open_world_result: {type: boolean}
+            title: {type: string, minLength: 1, maxLength: 128}
+            review_reference: {type: string, minLength: 1, maxLength: 512}
+            retry_qualification: {type: string, minLength: 1, maxLength: 512}
+            canonicalization_profile: {const: jcs-v1}
+            connector:
+              type: object
+              additionalProperties: false
+              required: [type, operation, instance_selector]
+              properties:
+                type: {type: string, minLength: 1, maxLength: 128}
+                operation: {type: string, minLength: 1, maxLength: 128}
+                instance_selector: {type: string, minLength: 1, maxLength: 128}
+            credential_binding_selector: {type: string, minLength: 1, maxLength: 128}
+            resource_projection:
+              type: object
+              additionalProperties: false
+              required: [fields]
+              properties:
+                max_fields: {type: integer, minimum: 1, maximum: 32}
+                max_output_bytes: {type: integer, minimum: 2, maximum: 16384}
+                fields:
+                  type: array
+                  minItems: 1
+                  maxItems: 32
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [name, required, type]
+                    properties:
+                      name: {type: string, minLength: 1, maxLength: 128}
+                      pointer: {type: string}
+                      literal: {}
+                      literal_set: {type: boolean}
+                      required: {type: boolean}
+                      type: {enum: [any, string, number, boolean, object, array, 'null']}
+            limits:
+              type: object
+              additionalProperties: false
+              required: [request_bytes, result_bytes, deadline_ms, concurrency, max_attempts]
+              properties:
+                request_bytes: {type: integer, minimum: 1, maximum: 1048576}
+                result_bytes: {type: integer, minimum: 1, maximum: 4194304}
+                deadline_ms: {type: integer, minimum: 1, maximum: 30000}
+                concurrency: {type: integer, minimum: 1, maximum: 250}
+                max_attempts: {type: integer, minimum: 1, maximum: 3}
+            metering:
+              type: object
+              additionalProperties: false
+              required: [dimension, units, charge_point, deduplication_scope]
+              properties:
+                dimension: {type: string, minLength: 1, maxLength: 128}
+                units: {type: string, pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$', maxLength: 64}
+                charge_point: {enum: [attempt, confirmed_side_effect, result, provider_unit, tool_specific]}
+                deduplication_scope: {enum: [logical_invocation, attempt, provider_unit]}
     TenantToolExposure:
       type: object
       additionalProperties: false
       required: [tenant_id, tool_id, version, enabled]
       properties:
-        tenant_id: {type: string}
+        tenant_id: {type: string, format: uuid}
         tool_id: {type: string}
         version: {type: string}
         enabled: {type: boolean}

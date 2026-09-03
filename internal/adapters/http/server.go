@@ -38,9 +38,13 @@ type Options struct {
 	Logger        *slog.Logger
 	Observability *telemetry.Observability
 	Authenticator Authenticator
-	Readiness     Readiness
-	IDGenerator   IDGenerator
-	Application   stdhttp.Handler
+	// AdminAuthenticator is deliberately distinct from Authenticator. Ordinary
+	// harness credentials must never reach administrative handlers.
+	AdminAuthenticator Authenticator
+	Readiness          Readiness
+	IDGenerator        IDGenerator
+	Application        stdhttp.Handler
+	AdminApplication   stdhttp.Handler
 }
 
 type Server struct {
@@ -83,9 +87,19 @@ func New(options Options) (*Server, error) {
 		writeJSON(writer, stdhttp.StatusOK, map[string]string{"status": "ready"})
 	})
 	mux.Handle("GET /metrics", options.Observability.MetricsHandler)
-	mux.Handle("/", options.Application)
+	var adminApplication stdhttp.Handler = stdhttp.HandlerFunc(func(writer stdhttp.ResponseWriter, request *stdhttp.Request) {
+		writePublicProblem(writer, request, domain.CodeUnauthenticated)
+	})
+	if options.AdminApplication != nil {
+		if options.AdminAuthenticator == nil {
+			return nil, errors.New("admin authenticator is required when the admin application is configured")
+		}
+		adminApplication = authentication(options.AdminAuthenticator, options.AdminApplication)
+	}
+	mux.Handle("/v1/admin/", adminApplication)
+	mux.Handle("/", authentication(options.Authenticator, options.Application))
 
-	handler := authentication(options.Authenticator, mux)
+	handler := stdhttp.Handler(mux)
 	handler = publicRequestLimits(options.Config.MaxBodyBytes, maxConcurrentPublicRequests, handler)
 	handler = bodyLimit(options.Config.MaxBodyBytes, handler)
 	handler = requestDeadline(options.Config.WriteTimeout, handler)

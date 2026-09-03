@@ -9,6 +9,16 @@ subject, agent/version, run, and workload context is derived from verified
 authentication/trusted lookup, never request bodies. Administration uses a
 separate audience, authorization path, and evidence trail.
 
+`POST /v1/admin/tool-versions` and `PUT /v1/admin/tenant-tool-exposures` are
+served only by a separately authenticated admin route group. Passing ordinary
+harness authentication never selects that group or grants administration
+authority. Each request requires a bounded `Idempotency-Key`, strict JSON, and
+action-scoped privileged authorization (`tool_version.publish` or
+`tenant_tool_exposure.set`) before mutation. Publication authorization occurs
+before schema compilation; exposure authorization is scoped to the validated
+tenant identifier. The application mutation boundary is responsible for
+idempotent persistence and mandatory audit/outbox records.
+
 Requests are JSON-only with strict unknown-field rejection, body/header/deadline
 limits, and cancellation. `Idempotency-Key` is the logical `tool_call_id` scoped by
 trusted tenant/run. Pagination cursors are opaque, integrity protected, bounded,

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // CreateToolCall Governance identity, destination, credential, and retry overrides are prohibited. Idempotent replays must use the same exact tool version and canonical arguments.
@@ -40,29 +41,59 @@ type Problem struct {
 
 // PublishToolVersion defines model for PublishToolVersion.
 type PublishToolVersion struct {
-	Approval                  interface{}            `json:"approval"`
-	ConnectorOperation        string                 `json:"connector_operation"`
-	CredentialBindingSelector map[string]interface{} `json:"credential_binding_selector"`
+	Approval                interface{} `json:"approval"`
+	CanonicalizationProfile interface{} `json:"canonicalization_profile"`
+	Connector               struct {
+		InstanceSelector string `json:"instance_selector"`
+		Operation        string `json:"operation"`
+		Type             string `json:"type"`
+	} `json:"connector"`
+	CredentialBindingSelector string                 `json:"credential_binding_selector"`
 	Description               string                 `json:"description"`
 	InputSchema               map[string]interface{} `json:"input_schema"`
-	Limits                    map[string]interface{} `json:"limits"`
-	Metering                  map[string]interface{} `json:"metering"`
-	OpenWorldResult           bool                   `json:"open_world_result"`
-	OutputSchema              map[string]interface{} `json:"output_schema"`
-	ResourceProjection        map[string]interface{} `json:"resource_projection"`
-	RetryClass                interface{}            `json:"retry_class"`
-	Risk                      interface{}            `json:"risk"`
-	SideEffect                bool                   `json:"side_effect"`
-	ToolId                    string                 `json:"tool_id"`
-	Version                   string                 `json:"version"`
+	Limits                    struct {
+		Concurrency  int `json:"concurrency"`
+		DeadlineMs   int `json:"deadline_ms"`
+		MaxAttempts  int `json:"max_attempts"`
+		RequestBytes int `json:"request_bytes"`
+		ResultBytes  int `json:"result_bytes"`
+	} `json:"limits"`
+	Metering struct {
+		ChargePoint        interface{} `json:"charge_point"`
+		DeduplicationScope interface{} `json:"deduplication_scope"`
+		Dimension          string      `json:"dimension"`
+		Units              string      `json:"units"`
+	} `json:"metering"`
+	OpenWorldResult    bool                   `json:"open_world_result"`
+	OutputSchema       map[string]interface{} `json:"output_schema"`
+	ResourceProjection struct {
+		Fields []struct {
+			Literal    interface{} `json:"literal,omitempty"`
+			LiteralSet *bool       `json:"literal_set,omitempty"`
+			Name       string      `json:"name"`
+			Pointer    *string     `json:"pointer,omitempty"`
+			Required   bool        `json:"required"`
+			Type       interface{} `json:"type"`
+		} `json:"fields"`
+		MaxFields      *int `json:"max_fields,omitempty"`
+		MaxOutputBytes *int `json:"max_output_bytes,omitempty"`
+	} `json:"resource_projection"`
+	RetryClass         interface{} `json:"retry_class"`
+	RetryQualification string      `json:"retry_qualification"`
+	ReviewReference    string      `json:"review_reference"`
+	Risk               interface{} `json:"risk"`
+	SideEffect         bool        `json:"side_effect"`
+	Title              string      `json:"title"`
+	ToolId             string      `json:"tool_id"`
+	Version            string      `json:"version"`
 }
 
 // TenantToolExposure defines model for TenantToolExposure.
 type TenantToolExposure struct {
-	Enabled  bool   `json:"enabled"`
-	TenantId string `json:"tenant_id"`
-	ToolId   string `json:"tool_id"`
-	Version  string `json:"version"`
+	Enabled  bool               `json:"enabled"`
+	TenantId openapi_types.UUID `json:"tenant_id"`
+	ToolId   string             `json:"tool_id"`
+	Version  string             `json:"version"`
 }
 
 // Tool defines model for Tool.
@@ -114,6 +145,18 @@ type Limit = int
 
 // ToolId defines model for ToolId.
 type ToolId = string
+
+// SetTenantToolExposureParams defines parameters for SetTenantToolExposure.
+type SetTenantToolExposureParams struct {
+	// IdempotencyKey Stable logical tool_call_id; a transport request ID is insufficient.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PublishToolVersionParams defines parameters for PublishToolVersion.
+type PublishToolVersionParams struct {
+	// IdempotencyKey Stable logical tool_call_id; a transport request ID is insufficient.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
 
 // CreateToolCallParams defines parameters for CreateToolCall.
 type CreateToolCallParams struct {
@@ -301,10 +344,10 @@ type ServerInterface interface {
 	Ready(w http.ResponseWriter, r *http.Request)
 	// SetTenantToolExposure Set tenant exposure through separate admin authority.
 	// (PUT /v1/admin/tenant-tool-exposures)
-	SetTenantToolExposure(w http.ResponseWriter, r *http.Request)
+	SetTenantToolExposure(w http.ResponseWriter, r *http.Request, params SetTenantToolExposureParams)
 	// PublishToolVersion Publish an immutable tool version through separate admin authority.
 	// (POST /v1/admin/tool-versions)
-	PublishToolVersion(w http.ResponseWriter, r *http.Request)
+	PublishToolVersion(w http.ResponseWriter, r *http.Request, params PublishToolVersionParams)
 	// CreateToolCall Acquire and process one governed logical tool call.
 	// (POST /v1/tool-calls)
 	CreateToolCall(w http.ResponseWriter, r *http.Request, params CreateToolCallParams)
@@ -359,8 +402,39 @@ func (siw *ServerInterfaceWrapper) Ready(w http.ResponseWriter, r *http.Request)
 // SetTenantToolExposure operation middleware
 func (siw *ServerInterfaceWrapper) SetTenantToolExposure(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SetTenantToolExposureParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SetTenantToolExposure(w, r)
+		siw.Handler.SetTenantToolExposure(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -373,8 +447,39 @@ func (siw *ServerInterfaceWrapper) SetTenantToolExposure(w http.ResponseWriter, 
 // PublishToolVersion operation middleware
 func (siw *ServerInterfaceWrapper) PublishToolVersion(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PublishToolVersionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PublishToolVersion(w, r)
+		siw.Handler.PublishToolVersion(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -754,7 +859,8 @@ func (response Ready503ApplicationProblemPlusJSONResponse) VisitReadyResponse(w 
 }
 
 type SetTenantToolExposureRequestObject struct {
-	Body *SetTenantToolExposureJSONRequestBody
+	Params SetTenantToolExposureParams
+	Body   *SetTenantToolExposureJSONRequestBody
 }
 
 type SetTenantToolExposureResponseObject interface {
@@ -803,7 +909,8 @@ func (response SetTenantToolExposuredefaultApplicationProblemPlusJSONResponse) V
 }
 
 type PublishToolVersionRequestObject struct {
-	Body *PublishToolVersionJSONRequestBody
+	Params PublishToolVersionParams
+	Body   *PublishToolVersionJSONRequestBody
 }
 
 type PublishToolVersionResponseObject interface {
@@ -1279,8 +1386,10 @@ func (sh *strictHandler) Ready(w http.ResponseWriter, r *http.Request) {
 }
 
 // SetTenantToolExposure operation middleware
-func (sh *strictHandler) SetTenantToolExposure(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) SetTenantToolExposure(w http.ResponseWriter, r *http.Request, params SetTenantToolExposureParams) {
 	var request SetTenantToolExposureRequestObject
+
+	request.Params = params
 
 	var body SetTenantToolExposureJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -1310,8 +1419,10 @@ func (sh *strictHandler) SetTenantToolExposure(w http.ResponseWriter, r *http.Re
 }
 
 // PublishToolVersion operation middleware
-func (sh *strictHandler) PublishToolVersion(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) PublishToolVersion(w http.ResponseWriter, r *http.Request, params PublishToolVersionParams) {
 	var request PublishToolVersionRequestObject
+
+	request.Params = params
 
 	var body PublishToolVersionJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

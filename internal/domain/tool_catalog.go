@@ -193,18 +193,18 @@ const (
 )
 
 type ResourceProjectionField struct {
-	Name       string
-	Pointer    string
-	Literal    any
-	LiteralSet bool
-	Required   bool
-	Type       ProjectionValueType
+	Name       string              `json:"name"`
+	Pointer    string              `json:"pointer,omitempty"`
+	Literal    any                 `json:"literal,omitempty"`
+	LiteralSet bool                `json:"literal_set,omitempty"`
+	Required   bool                `json:"required"`
+	Type       ProjectionValueType `json:"type"`
 }
 
 type ResourceProjectionDefinition struct {
-	Fields         []ResourceProjectionField
-	MaxFields      int
-	MaxOutputBytes int
+	Fields         []ResourceProjectionField `json:"fields"`
+	MaxFields      int                       `json:"max_fields,omitempty"`
+	MaxOutputBytes int                       `json:"max_output_bytes,omitempty"`
 }
 
 type ToolLimits struct {
@@ -246,10 +246,10 @@ const (
 )
 
 type MeteringRule struct {
-	Dimension          string
-	Units              string
-	ChargePoint        MeteringChargePoint
-	DeduplicationScope MeteringDeduplicationScope
+	Dimension          string                     `json:"dimension"`
+	Units              string                     `json:"units"`
+	ChargePoint        MeteringChargePoint        `json:"charge_point"`
+	DeduplicationScope MeteringDeduplicationScope `json:"deduplication_scope"`
 }
 
 // SchemaCompiler is the narrow publication-time boundary implemented by the
