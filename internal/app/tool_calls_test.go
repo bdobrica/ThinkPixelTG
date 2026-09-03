@@ -250,7 +250,11 @@ type credentialFake struct {
 	releases int
 }
 
-func (f *credentialFake) Release() { f.releases++; *f.events = append(*f.events, "release") }
+func (*credentialFake) Metadata() ports.CredentialCapabilityMetadata {
+	return ports.CredentialCapabilityMetadata{}
+}
+func (*credentialFake) UseSecret(use func([]byte) error) error { return use(nil) }
+func (f *credentialFake) Release()                             { f.releases++; *f.events = append(*f.events, "release") }
 
 type fixedClock struct{ at time.Time }
 

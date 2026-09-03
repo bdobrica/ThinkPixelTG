@@ -67,7 +67,22 @@ type ToolCallReader interface {
 	GetToolCall(context.Context, InvocationIdentity, string) (ToolCallView, error)
 }
 
-type CredentialCapability interface{ Release() }
+// CredentialCapability exposes safe target/lifetime metadata for connector
+// validation and provides scoped access to opaque C3 secret bytes. Implementors
+// must redact all serialization and formatting paths.
+type CredentialCapability interface {
+	Metadata() CredentialCapabilityMetadata
+	UseSecret(func([]byte) error) error
+	Release()
+}
+
+type CredentialCapabilityMetadata struct {
+	Kind                                domain.CredentialCapabilityKind
+	ProviderRef, Issuer                 string
+	Audiences, Resources, Scopes        []string
+	IssuedAt, ExpiresAt                 time.Time
+	LeaseID, RefreshID, RevocationEpoch string
+}
 
 type CredentialBroker interface {
 	Resolve(context.Context, InvocationIdentity, domain.ToolVersionDefinition, AuthorizationDecision) (CredentialCapability, error)

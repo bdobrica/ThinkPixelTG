@@ -119,7 +119,11 @@ func (authorizer phase4Authorizer) AuthorizeToolInvocation(_ context.Context, re
 
 type phase4Lease struct{ releases int }
 
-func (lease *phase4Lease) Release() { lease.releases++ }
+func (*phase4Lease) Metadata() ports.CredentialCapabilityMetadata {
+	return ports.CredentialCapabilityMetadata{}
+}
+func (*phase4Lease) UseSecret(use func([]byte) error) error { return use(nil) }
+func (lease *phase4Lease) Release()                         { lease.releases++ }
 
 type phase4Broker struct{ lease *phase4Lease }
 
