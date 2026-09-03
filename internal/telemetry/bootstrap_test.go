@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
+type credentialCanaryContextKey struct{}
+
 func TestBootstrapNoopMetricsAndShutdown(t *testing.T) {
 	observability, err := Bootstrap(context.Background(), BootstrapConfig{ServiceName: "thinkpixeltg", TraceMode: TraceNoop})
 	if err != nil {
@@ -50,6 +52,27 @@ func TestBootstrapLocalAndW3CPropagation(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "operation") {
 		t.Fatalf("local trace missing: %s", output.String())
+	}
+}
+
+func TestCredentialCanaryIsExcludedFromTracesAndMetrics(t *testing.T) {
+	const canary = "SYNTHETIC_CREDENTIAL_CANARY_telemetry_013"
+	var traces bytes.Buffer
+	observability, err := Bootstrap(context.Background(), BootstrapConfig{ServiceName: "thinkpixeltg", TraceMode: TraceLocal, LocalWriter: &traces})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.WithValue(context.Background(), credentialCanaryContextKey{}, canary)
+	_, span := observability.TracerProvider.Tracer("test").Start(ctx, "credential.resolve")
+	span.End()
+	observability.ObserveRequest("GET", "/v1/tools/{tool_id}", 200, time.Millisecond)
+	metrics := httptest.NewRecorder()
+	observability.MetricsHandler.ServeHTTP(metrics, httptest.NewRequest("GET", "/metrics", nil))
+	if err := observability.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(traces.String(), canary) || strings.Contains(metrics.Body.String(), canary) {
+		t.Fatalf("telemetry leaked credential canary: traces=%s metrics=%s", traces.String(), metrics.Body.String())
 	}
 }
 

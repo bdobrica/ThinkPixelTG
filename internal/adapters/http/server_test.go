@@ -71,13 +71,19 @@ func TestMiddlewareOrdersCorrelationBeforeAuthentication(t *testing.T) {
 
 func TestPanicAndAuthenticationUseProblems(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
+		const canary = "SYNTHETIC_CREDENTIAL_CANARY_panic_013"
+		var logs bytes.Buffer
 		server := testServer(t, func(options *Options) {
-			options.Application = stdhttp.HandlerFunc(func(stdhttp.ResponseWriter, *stdhttp.Request) { panic("canary") })
+			options.Logger = telemetry.NewLogger(slog.NewJSONHandler(&logs, nil))
+			options.Application = stdhttp.HandlerFunc(func(stdhttp.ResponseWriter, *stdhttp.Request) { panic(canary) })
 		})
 		response := httptest.NewRecorder()
 		server.Handler().ServeHTTP(response, httptest.NewRequest("GET", "/panic", nil))
 		if response.Code != 500 || response.Header().Get("Content-Type") != "application/problem+json" {
 			t.Fatalf("response = %d %s", response.Code, response.Body.String())
+		}
+		if strings.Contains(response.Body.String(), canary) || strings.Contains(logs.String(), canary) {
+			t.Fatalf("panic path leaked credential canary: body=%s logs=%s", response.Body.String(), logs.String())
 		}
 	})
 	t.Run("authentication", func(t *testing.T) {

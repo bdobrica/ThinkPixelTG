@@ -36,3 +36,18 @@ func TestGRFakeRejectsUnknownAndInvalidPhase(t *testing.T) {
 		t.Fatalf("status = %d", response.Code)
 	}
 }
+
+func TestGRRequestRejectsCredentialCanary(t *testing.T) {
+	const canary = "SYNTHETIC_CREDENTIAL_CANARY_gr_013"
+	handler, err := (Server{Kind: "gr"}).Handler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest("POST", "/v1/evaluate", bytes.NewBufferString(`{"evaluation_id":"e1","phase":"pre_tool","content_digest":"sha256:x","credential":"`+canary+`"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || strings.Contains(response.Body.String(), canary) {
+		t.Fatalf("GR boundary accepted or disclosed credential: %d %s", response.Code, response.Body.String())
+	}
+}

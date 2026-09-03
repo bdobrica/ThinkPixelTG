@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,8 @@ const (
 	protectedEventID  = "019b0000-0000-7000-8000-000000000202"
 	protectedOutboxID = "019b0000-0000-7000-8000-000000000203"
 )
+
+type credentialCanaryContextKey struct{}
 
 func TestProtectedMutationRequiresAuditAndOutboxBeforeBeginning(t *testing.T) {
 	t.Parallel()
@@ -68,6 +71,27 @@ func TestProtectedMutationCommitsOnlyAfterMutationAuditAndOutbox(t *testing.T) {
 	}
 }
 
+func TestCredentialCanaryIsExcludedFromDatabaseAuditAndOutboxArguments(t *testing.T) {
+	const canary = "SYNTHETIC_CREDENTIAL_CANARY_database_013"
+	tx := &protectedTx{}
+	executor, err := NewProtectedMutationExecutor(&protectedDatabase{fakeBeginner: &fakeBeginner{tx: tx}}, protectedTenantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.WithValue(context.Background(), credentialCanaryContextKey{}, canary)
+	if err := executor.Execute(ctx, validProtectedMutationRecords(), func(ctx context.Context, repositories *TenantRepositories) error {
+		return repositories.ConnectorInstances.Put(ctx, ConnectorInstance{
+			ID: protectedOutboxID, Type: "test", DestinationConfig: []byte(`{}`), ConfigDigest: make([]byte, 32),
+			Enabled: true, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(tx.serializedArguments, canary) {
+		t.Fatalf("database, audit, or outbox argument leaked credential canary: %s", tx.serializedArguments)
+	}
+}
+
 func TestProtectedMutationRollsBackAtEveryFailureBoundary(t *testing.T) {
 	t.Parallel()
 	for _, failure := range []string{"mutation", "audit", "outbox"} {
@@ -109,13 +133,15 @@ func (*protectedDatabase) QueryRow(context.Context, string, ...any) pgx.Row     
 
 type protectedTx struct {
 	pgx.Tx
-	operations []string
-	failAt     string
-	commits    int
-	rollbacks  int
+	operations          []string
+	failAt              string
+	commits             int
+	rollbacks           int
+	serializedArguments string
 }
 
-func (t *protectedTx) Exec(_ context.Context, query string, _ ...any) (pgconn.CommandTag, error) {
+func (t *protectedTx) Exec(_ context.Context, query string, arguments ...any) (pgconn.CommandTag, error) {
+	t.serializedArguments += fmt.Sprint(arguments...)
 	operation := "mutation"
 	if strings.Contains(query, "INSERT INTO audit_events") {
 		operation = "audit"

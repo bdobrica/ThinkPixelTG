@@ -55,6 +55,27 @@ func TestToolCallServiceRunsGovernedSequenceAndCanonicalConnectorInput(t *testin
 	}
 }
 
+func TestCredentialCanaryIsExcludedFromApplicationErrors(t *testing.T) {
+	const canary = "SYNTHETIC_CREDENTIAL_CANARY_app_013"
+	events := []string{}
+	lease := &credentialFake{events: &events}
+	service := newInvocationTestService(t, invocationTestTool(t), &invocationLedgerFake{events: &events},
+		authorizerFunc(func(_ context.Context, request ports.AuthorizationRequest) (ports.AuthorizationDecision, error) {
+			return allowedDecision(request, time.Unix(100, 0)), nil
+		}),
+		credentialBrokerFake(func(context.Context, ports.InvocationIdentity, domain.ToolVersionDefinition, ports.AuthorizationDecision) (ports.CredentialCapability, error) {
+			return lease, nil
+		}),
+		connectorFake(func(context.Context, ports.ConnectorRequest) (ports.ConnectorResult, error) {
+			return ports.ConnectorResult{}, errors.New(canary)
+		}),
+	)
+	_, err := service.Create(t.Context(), invocationTestRequest())
+	if err == nil || strings.Contains(err.Error(), canary) {
+		t.Fatalf("application error leaked credential canary: %v", err)
+	}
+}
+
 func TestReplayConflictAndMalformedArgumentsNeverReachAuthorityOrConnector(t *testing.T) {
 	for _, test := range []struct {
 		name   string
