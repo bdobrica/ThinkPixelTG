@@ -130,7 +130,7 @@ Unless an item states otherwise, dependencies are the preceding items in the sam
 ## Phase 5 — Credential broker and first real connector
 
 - [x] CRED-001 Implement the credential-binding domain model tying trusted connector instances/tool selectors to credential providers, scopes/audiences/resources, tenancy, optional subject delegation, and policy-relevant metadata. — completed 2026-09-03, evidence: `go test -race -count=1 ./internal/domain`; `go test -count=1 ./...`; `go vet ./...`; `make lint`
-- [ ] CRED-002 Implement credential-selection rules from trusted tool/connector configuration only; reject caller-provided secret names, credential provider names, raw auth headers, arbitrary scopes, or connector destinations.
+- [x] CRED-002 Implement credential-selection rules from trusted tool/connector configuration only; reject caller-provided secret names, credential provider names, raw auth headers, arbitrary scopes, or connector destinations. — completed 2026-09-03, evidence: `go test -race -count=1 ./internal/app ./internal/adapters/http`; `go test -count=1 ./...`; `go vet ./...`; `make openapi-check`; `make lint`
 - [ ] CRED-003 Implement typed credential capability objects with expiration, audience/resource, optional refresh/lease metadata, zeroizable/short-lived in-memory representation where practical, and secret-safe `String`/error behavior.
 - [ ] CRED-004 Implement a development-only environment/file provider with explicit production prohibition, strong redaction, and isolated tests.
 - [ ] CRED-005 Implement at least one production-oriented provider such as Kubernetes projected/workload identity, Vault, AWS STS, Google workload federation, Azure managed identity, or standards-based OAuth token exchange; document the selected RC provider.

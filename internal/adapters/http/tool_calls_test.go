@@ -100,6 +100,13 @@ func TestCreateToolCallRejectsUntrustedShapeBeforeApplication(t *testing.T) {
 		{"content type", "text/plain", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{}`},
 		{"missing key", "application/json", "", `{"tool_id":"a.b","arguments":{}}`},
 		{"governance field", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"tenant_id":"forged"}`},
+		{"secret name", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"secret_name":"caller-secret"}`},
+		{"credential provider", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"credential_provider":"caller-provider"}`},
+		{"authorization override", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"authorization":"Bearer caller-token"}`},
+		{"scope override", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"scopes":["admin"]}`},
+		{"audience override", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"audience":"attacker"}`},
+		{"destination override", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"destination":"https://attacker.invalid"}`},
+		{"binding override", "application/json", "01890f3e-7b6d-7cc0-98c4-dc0c0c073990", `{"tool_id":"a.b","arguments":{},"credential_binding":"caller-binding"}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/v1/tool-calls", jsonReader(test.body))
