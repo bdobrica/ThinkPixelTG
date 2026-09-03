@@ -99,14 +99,16 @@ func (connector *CommentWriter) Execute(ctx context.Context, request ports.Conne
 	defer func() { _ = response.Body.Close() }()
 
 	classification := classifyCommentStatus(response.StatusCode)
+	evidence := responseEvidence(response)
 	if classification != "confirmed_success" {
-		return ports.ConnectorResult{Classification: classification}, nil
+		return ports.ConnectorResult{Classification: classification, Evidence: evidence}, nil
 	}
-	result, err := decodeComment(response.Body, repository, pullNumber)
+	result, providerResultID, err := decodeComment(response.Body, repository, pullNumber)
 	if err != nil {
 		return ports.ConnectorResult{}, err
 	}
-	return ports.ConnectorResult{Classification: classification, Result: result}, nil
+	evidence.ProviderResultID = providerResultID
+	return ports.ConnectorResult{Classification: classification, Result: result, Evidence: evidence}, nil
 }
 
 type commentArguments struct {
@@ -164,15 +166,15 @@ type commentResult struct {
 	CreatedAt  string `json:"created_at"`
 }
 
-func decodeComment(body io.Reader, repository string, pullNumber int64) (json.RawMessage, error) {
+func decodeComment(body io.Reader, repository string, pullNumber int64) (json.RawMessage, string, error) {
 	decoder := json.NewDecoder(body)
 	var comment githubComment
 	if err := decoder.Decode(&comment); err != nil || decoder.Decode(&struct{}{}) != io.EOF || comment.ID < 1 || comment.HTMLURL == "" || comment.CreatedAt == "" {
-		return nil, ErrResponse
+		return nil, "", ErrResponse
 	}
 	result, err := json.Marshal(commentResult{Repository: repository, PullNumber: pullNumber, CommentID: comment.ID, URL: comment.HTMLURL, CreatedAt: comment.CreatedAt})
 	if err != nil {
-		return nil, ErrResponse
+		return nil, "", ErrResponse
 	}
-	return result, nil
+	return result, strconv.FormatInt(comment.ID, 10), nil
 }

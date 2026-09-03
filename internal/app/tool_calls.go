@@ -183,6 +183,9 @@ func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequ
 	if err != nil {
 		return ToolCallResult{}, domain.NewError(domain.CodeConnectorError, "connector execution failed", err)
 	}
+	if !validConnectorEvidence(output.Evidence) {
+		return ToolCallResult{}, domain.NewError(domain.CodeInternal, "connector returned invalid evidence", nil)
+	}
 	state, ok := connectorState(output.Classification)
 	if !ok {
 		return ToolCallResult{}, domain.NewError(domain.CodeInternal, "connector returned an invalid public state", nil)
@@ -190,6 +193,24 @@ func (service *ToolCallService) Create(ctx context.Context, request ToolCallRequ
 	// Connector content is open-world and remains inside the application until
 	// output-schema and mandatory post-tool processing finalize it.
 	return ToolCallResult{Invocation: invocation, State: state}, nil
+}
+
+func validConnectorEvidence(evidence ports.ConnectorEvidence) bool {
+	for _, value := range []string{evidence.ProviderRequestID, evidence.ProviderResultID, evidence.ResourceVersion} {
+		if len(value) > 256 || strings.IndexFunc(value, func(character rune) bool {
+			return character < 0x20 || character == 0x7f
+		}) >= 0 {
+			return false
+		}
+	}
+	if len(evidence.SafeMetadata) == 0 {
+		return true
+	}
+	if len(evidence.SafeMetadata) > 4096 {
+		return false
+	}
+	var object map[string]any
+	return json.Unmarshal(evidence.SafeMetadata, &object) == nil && object != nil
 }
 
 func connectorState(classification string) (string, bool) {

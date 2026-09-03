@@ -16,6 +16,13 @@ identifiers and safe reconciliation evidence. `Reconcile` exists only for
 qualified operations and takes stable stored evidence—not raw caller-selected
 destinations or credentials outside a fresh trusted binding resolution.
 
+The execution evidence envelope contains only an allowlisted provider request
+identifier, provider result identifier, resource version, and a bounded JSON
+object of connector-defined safe metadata. Each scalar is at most 256 bytes and
+the metadata object is at most 4096 bytes. Connectors omit invalid provider
+values; raw bodies, URLs, arbitrary headers, and credential material are never
+evidence.
+
 ## Result and error taxonomy
 
 | Classification | Meaning / orchestration consequence |

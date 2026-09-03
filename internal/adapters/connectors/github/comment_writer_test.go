@@ -25,7 +25,7 @@ func TestCommentWriterSendsBoundedWriteAndReturnsSafeIdentifiers(t *testing.T) {
 			t.Fatalf("headers = %#v", request.Header)
 		}
 		body := `{"id":91,"html_url":"https://github.com/thinkpixel/tg/pull/17#issuecomment-91","created_at":"2026-09-03T12:00:00Z","body":"Looks good.","user":{"login":"sensitive"}}`
-		return &http.Response{StatusCode: http.StatusCreated, Body: io.NopCloser(strings.NewReader(body))}, nil
+		return &http.Response{StatusCode: http.StatusCreated, Header: http.Header{"X-Github-Request-Id": {"request-456"}, "Etag": {`W/"comment-91"`}}, Body: io.NopCloser(strings.NewReader(body))}, nil
 	}))
 	result, err := connector.Execute(context.Background(), validCommentRequest(newCapability(t)))
 	if err != nil {
@@ -33,6 +33,9 @@ func TestCommentWriterSendsBoundedWriteAndReturnsSafeIdentifiers(t *testing.T) {
 	}
 	if result.Classification != "confirmed_success" || string(result.Result) != `{"repository":"tg","pull_number":17,"comment_id":91,"url":"https://github.com/thinkpixel/tg/pull/17#issuecomment-91","created_at":"2026-09-03T12:00:00Z"}` {
 		t.Fatalf("result = %#v", result)
+	}
+	if result.Evidence.ProviderRequestID != "request-456" || result.Evidence.ProviderResultID != "91" || result.Evidence.ResourceVersion != `W/"comment-91"` || string(result.Evidence.SafeMetadata) != `{"status_code":201}` {
+		t.Fatalf("evidence = %#v", result.Evidence)
 	}
 	if sent.Header.Get("Authorization") != "" {
 		t.Fatal("authorization header remained reachable after execution")

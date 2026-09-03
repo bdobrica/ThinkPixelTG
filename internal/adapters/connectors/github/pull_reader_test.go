@@ -45,8 +45,8 @@ func TestPullReaderUsesScopedCapabilityAndReturnsBoundedProjection(t *testing.T)
 		if request.Header.Get("Authorization") != "Bearer synthetic-secret-canary" || request.Header.Get("Accept") != "application/vnd.github+json" {
 			t.Fatalf("headers = %#v", request.Header)
 		}
-		body := `{"number":17,"title":"Secure connector","state":"open","html_url":"https://github.com/thinkpixel/tg/pull/17","updated_at":"2026-09-03T12:00:00Z","body":"provider content not projected"}`
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
+		body := `{"number":17,"node_id":"PR_kwDOExample","title":"Secure connector","state":"open","html_url":"https://github.com/thinkpixel/tg/pull/17","updated_at":"2026-09-03T12:00:00Z","body":"provider content not projected"}`
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"X-Github-Request-Id": {"request-123"}, "Etag": {`"version-7"`}}, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})
 	connector := newReader(t, client)
 	capability := newCapability(t)
@@ -57,8 +57,22 @@ func TestPullReaderUsesScopedCapabilityAndReturnsBoundedProjection(t *testing.T)
 	if result.Classification != "confirmed_success" || string(result.Result) != `{"repository":"tg","number":17,"title":"Secure connector","state":"open","url":"https://github.com/thinkpixel/tg/pull/17","updated_at":"2026-09-03T12:00:00Z"}` {
 		t.Fatalf("result = %#v", result)
 	}
+	if result.Evidence.ProviderRequestID != "request-123" || result.Evidence.ProviderResultID != "PR_kwDOExample" || result.Evidence.ResourceVersion != `"version-7"` || string(result.Evidence.SafeMetadata) != `{"status_code":200}` {
+		t.Fatalf("evidence = %#v", result.Evidence)
+	}
 	if sent.Header.Get("Authorization") != "" {
 		t.Fatal("authorization header remained reachable after execution")
+	}
+}
+
+func TestPullReaderOmitsUnsafeProviderEvidence(t *testing.T) {
+	connector := newReader(t, httpClientFunc(func(context.Context, string, *http.Request) (*http.Response, error) {
+		body := `{"number":17,"node_id":"provider\u000aid","title":"Secure connector","state":"open","html_url":"https://github.com/thinkpixel/tg/pull/17","updated_at":"2026-09-03T12:00:00Z"}`
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"X-Github-Request-Id": {strings.Repeat("x", maximumProviderEvidenceValueBytes+1)}, "Etag": {"unsafe\nvalue"}}, Body: io.NopCloser(strings.NewReader(body))}, nil
+	}))
+	result, err := connector.Execute(context.Background(), validRequest(&credentialStub{metadata: validMetadata()}))
+	if err != nil || result.Evidence.ProviderRequestID != "" || result.Evidence.ProviderResultID != "" || result.Evidence.ResourceVersion != "" {
+		t.Fatalf("result = %#v, error = %v", result, err)
 	}
 }
 

@@ -113,6 +113,18 @@ type ConnectorRequest struct {
 type ConnectorResult struct {
 	Classification string
 	Result         json.RawMessage
+	Evidence       ConnectorEvidence
+}
+
+// ConnectorEvidence is the bounded, non-secret subset of provider output that
+// may be persisted with an execution attempt for correlation or reconciliation.
+// It must never contain request/response bodies, credentials, or arbitrary
+// provider headers.
+type ConnectorEvidence struct {
+	ProviderRequestID string
+	ProviderResultID  string
+	ResourceVersion   string
+	SafeMetadata      json.RawMessage
 }
 
 // ConnectorExecutor is the only application egress boundary for tool work.

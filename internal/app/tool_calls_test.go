@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -202,6 +203,25 @@ func TestTimeoutAndCancellationReachConnectorAndReleaseCredential(t *testing.T) 
 				t.Fatalf("credential releases = %d", lease.releases)
 			}
 		})
+	}
+}
+
+func TestConnectorEvidenceIsBoundedAndStructured(t *testing.T) {
+	for name, evidence := range map[string]ports.ConnectorEvidence{
+		"oversized identifier": {ProviderRequestID: strings.Repeat("x", 257)},
+		"control character":    {ResourceVersion: "version\nsecret"},
+		"array metadata":       {SafeMetadata: json.RawMessage(`[]`)},
+		"oversized metadata":   {SafeMetadata: json.RawMessage(`{"value":"` + strings.Repeat("x", 4090) + `"}`)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if validConnectorEvidence(evidence) {
+				t.Fatalf("accepted invalid evidence: %#v", evidence)
+			}
+		})
+	}
+	valid := ports.ConnectorEvidence{ProviderRequestID: "request-1", ProviderResultID: "result-1", ResourceVersion: `W/"version-1"`, SafeMetadata: json.RawMessage(`{"status_code":201}`)}
+	if !validConnectorEvidence(valid) {
+		t.Fatalf("rejected valid evidence: %#v", valid)
 	}
 }
 

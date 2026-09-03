@@ -129,14 +129,16 @@ func (connector *PullReader) Execute(ctx context.Context, request ports.Connecto
 	defer func() { _ = response.Body.Close() }()
 
 	classification := classifyStatus(response.StatusCode)
+	evidence := responseEvidence(response)
 	if classification != "confirmed_success" {
-		return ports.ConnectorResult{Classification: classification}, nil
+		return ports.ConnectorResult{Classification: classification, Evidence: evidence}, nil
 	}
-	result, err := decodePull(response.Body, repository, pullNumber)
+	result, providerResultID, err := decodePull(response.Body, repository, pullNumber)
 	if err != nil {
 		return ports.ConnectorResult{}, err
 	}
-	return ports.ConnectorResult{Classification: classification, Result: result}, nil
+	evidence.ProviderResultID = providerResultID
+	return ports.ConnectorResult{Classification: classification, Result: result, Evidence: evidence}, nil
 }
 
 type targetDocument struct {
@@ -222,6 +224,7 @@ func classifyStatus(status int) string {
 
 type githubPull struct {
 	Number    int64  `json:"number"`
+	NodeID    string `json:"node_id"`
 	Title     string `json:"title"`
 	State     string `json:"state"`
 	HTMLURL   string `json:"html_url"`
@@ -237,15 +240,15 @@ type pullResult struct {
 	UpdatedAt  string `json:"updated_at"`
 }
 
-func decodePull(body io.Reader, repository string, pullNumber int64) (json.RawMessage, error) {
+func decodePull(body io.Reader, repository string, pullNumber int64) (json.RawMessage, string, error) {
 	decoder := json.NewDecoder(body)
 	var pull githubPull
 	if err := decoder.Decode(&pull); err != nil || decoder.Decode(&struct{}{}) != io.EOF || pull.Number != pullNumber || pull.Title == "" || pull.State == "" || pull.HTMLURL == "" || pull.UpdatedAt == "" {
-		return nil, ErrResponse
+		return nil, "", ErrResponse
 	}
 	result, err := json.Marshal(pullResult{Repository: repository, Number: pull.Number, Title: pull.Title, State: pull.State, URL: pull.HTMLURL, UpdatedAt: pull.UpdatedAt})
 	if err != nil {
-		return nil, ErrResponse
+		return nil, "", ErrResponse
 	}
-	return result, nil
+	return result, boundedHeader(pull.NodeID), nil
 }
