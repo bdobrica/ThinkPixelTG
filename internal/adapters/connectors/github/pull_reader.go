@@ -92,6 +92,9 @@ func (connector *PullReader) Execute(ctx context.Context, request ports.Connecto
 	if connector == nil || ctx == nil || request.InvocationID == "" || request.Credential == nil || request.Tool.Connector.ConnectorType != ConnectorType || request.Tool.Connector.Operation != PullGet || request.Tool.Connector.InstanceSelector != connector.instanceSelector {
 		return ports.ConnectorResult{}, ErrInvalidRequest
 	}
+	if ctx.Err() != nil {
+		return ports.ConnectorResult{Classification: "cancelled_pre_send"}, nil
+	}
 	repository, pullNumber, err := validateTarget(request.CanonicalArguments, request.ResourceProjection)
 	if err != nil {
 		return ports.ConnectorResult{}, err
@@ -110,14 +113,19 @@ func (connector *PullReader) Execute(ctx context.Context, request ports.Connecto
 	httpRequest.Header.Set("Accept", "application/vnd.github+json")
 	httpRequest.Header.Set("User-Agent", "ThinkPixelTG")
 	var response *http.Response
+	attempted := false
 	err = request.Credential.UseSecret(func(secret []byte) error {
 		httpRequest.Header.Set("Authorization", "Bearer "+string(secret))
 		defer httpRequest.Header.Del("Authorization")
+		attempted = true
 		var callErr error
 		response, callErr = connector.client.Do(ctx, PullGet, httpRequest)
 		return callErr
 	})
 	if err != nil {
+		if !attempted {
+			return ports.ConnectorResult{}, ErrCredential
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return ports.ConnectorResult{}, err
 		}

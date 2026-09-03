@@ -144,6 +144,44 @@ func TestClientRejectsRedirectEscapeAndBoundsRedirects(t *testing.T) {
 	}
 }
 
+func TestClientDoesNotForwardAuthorizationAcrossRedirectAuthorities(t *testing.T) {
+	client, err := NewClient(validPolicy("first.example", 443, x509.NewCertPool()), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.policy.hosts["second.example"] = struct{}{}
+	client.policy.maxRedirects = 1
+	original, _ := http.NewRequest(http.MethodGet, "https://first.example/source", nil)
+	original.Header.Set("Authorization", "Bearer synthetic-secret-canary")
+	redirected, _ := http.NewRequest(http.MethodGet, "https://second.example/target", nil)
+	redirected.Header = original.Header.Clone()
+	if err := client.checkRedirect(redirected, []*http.Request{original}); err != nil {
+		t.Fatal(err)
+	}
+	if authorization := redirected.Header.Get("Authorization"); authorization != "" {
+		t.Fatalf("authorization forwarded across authority: %q", authorization)
+	}
+}
+
+func TestClientPropagatesCallerCancellation(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		<-request.Context().Done()
+	}))
+	defer server.Close()
+	client, _, target := testClient(t, server, 1024, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	request, _ := http.NewRequest(http.MethodGet, target, nil)
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.Do(ctx, "github.pull_read", request)
+		done <- err
+	}()
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestSecureDialRejectsPrivateMetadataAndMixedDNSAnswers(t *testing.T) {
 	for name, addresses := range map[string][]net.IPAddr{
 		"loopback": {{IP: net.ParseIP("127.0.0.1")}},
