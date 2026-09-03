@@ -88,6 +88,12 @@ type CredentialBroker interface {
 	Resolve(context.Context, InvocationIdentity, domain.ToolVersionDefinition, AuthorizationDecision) (CredentialCapability, error)
 }
 
+// CredentialProvider resolves one administrator-authored binding for the
+// governed subject. The context carries the caller's resolution deadline.
+type CredentialProvider interface {
+	Resolve(context.Context, domain.CredentialBinding, string) (CredentialCapability, error)
+}
+
 type ConnectorRequest struct {
 	InvocationID       string
 	Tool               domain.ToolVersionDefinition
