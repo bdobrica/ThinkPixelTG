@@ -16,8 +16,9 @@ summarized in [`ALIGNMENT.md`](../ALIGNMENT.md).
 - `operations/` — service levels, capacity, and runbooks.
 
 Phase completion records: [Phase 0](phase-0-evidence.md),
-[Phase 1](phase-1-evidence.md), [Phase 2](phase-2-evidence.md), and
-[Phase 3](phase-3-evidence.md), and [Phase 4](phase-4-evidence.md).
+[Phase 1](phase-1-evidence.md), [Phase 2](phase-2-evidence.md),
+[Phase 3](phase-3-evidence.md), [Phase 4](phase-4-evidence.md), and
+[Phase 5](phase-5-evidence.md).
 
 Normative documents use the terms **MUST**, **MUST NOT**, **SHOULD**, and **MAY**
 as defined by RFC 2119 and RFC 8174.
